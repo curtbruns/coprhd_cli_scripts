@@ -1,0 +1,155 @@
+import pexpect
+import json
+import time
+import sys
+import os
+import re
+
+def init():
+    password = os.getenv('OS_PASSWORD')
+    auth_url = os.getenv('OS_AUTH_URL')
+    os_user  = os.getenv('OS_USERNAME')
+    os_tenant = os.getenv('OS_TENANT_NAME')
+    
+    if password is None or auth_url is None or os_user is None or os_tenant is None:
+        print "Need to set OS Credentials: OS_PASSWORD, OS_AUTH_URL, OS_USERNAME, OS_TENANT_NAME"
+        sys.exit(-1)
+    else:
+        return (0)
+
+def get_projects(name):
+    command0 = 'openstack project show ' + name + ' -f json'
+    results = pexpect.run(command0)
+    json_dump = json.loads(results)
+    for field in json_dump:
+        if field['Field'] == 'id':
+            id = field['Value']
+            print "Id is: %s" % id
+            return id
+    raise (Exception("No ID for Admin Project"))
+
+def get_service(name):
+    command0 = 'openstack service show ' + name + ' -f json'
+    results = pexpect.run(command0)
+    json_dump = json.loads(results)
+    for field in json_dump:
+        if field['Field'] == 'id':
+            id = field['Value']
+            print "Id is: %s" % id
+            return id
+    raise (Exception("No ID for %s" % name)) 
+
+def get_endpoint(name):
+    command0 = 'openstack endpoint show ' + name + ' -f json'
+    results = pexpect.run(command0)
+    json_dump = json.loads(results)
+    for field in json_dump:
+        if field['Field'] == 'id':
+            id = field['Value']
+            print "Id is: %s" % id
+            return id
+    raise (Exception("No ID for %s" % name)) 
+
+def create_endpoint_for_ch(name):
+    command0 = 'openstack endpoint create 031acd00c38a469eb156817266ca302e --publicurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --adminurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --internalurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --region=RegionOne'
+    results = pexpect.run(command0)
+    print "Results from executing endpoint create for CH: %s" % results
+
+def delete_endpoint(id):
+    command0 = 'openstack endpoint delete ' + id
+    results = pexpect.run(command0)
+    print "Results of endpoint delete: %s" % results
+
+def add_tenant_id(pid):
+    command0 = '/opt/storageos/cli/bin/viprcli tenant create -n admin -domain lab -key tenant_id -value ' + pid
+    results = pexpect.run(command0)
+    print "Results from add_tenant: %s" % results
+
+def login():
+    # First Logout
+    print pexpect.run('/opt/storageos/cli/bin/viprcli logout')
+    
+    # Login to ViprCLI
+    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root -d /tmp')
+    child.logfile = sys.stdout
+    password = os.getenv('VIPR_PASSWORD')
+    child.expect('Password.*: ')
+    child.sendline(password)
+    child.expect(pexpect.EOF)
+    print child.before
+    child.close()
+
+def set_provider():
+    # Check out Storage Providers
+    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list')
+    test = re.search(r'NAME\s+INTERFACE', result)
+    if test is not None:
+        print "We have Storage Providers, bailing out!"
+        print "Providers: %s" % result
+        return(-1)
+    else:
+        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 22 -u vagrant -secondary_username admin -if scaleio')
+        child.logfile = sys.stdout
+        child.expect('Enter password of the storage provider:')
+        child.sendline('vagrant')
+        child.expect('Retype password:')
+        child.sendline('vagrant')
+        child.expect('Enter password of the secondary password:')
+        child.sendline('Scaleio123')
+        child.expect('Retype password:')
+        child.sendline('Scaleio123')
+        child.expect(pexpect.EOF)
+        child.before
+        child.close()
+
+def create_va(network):
+    print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n ScaleIO_VA')
+    command = '/opt/storageos/cli/bin/viprcli network update -varray_add ScaleIO_VA -n ' + network
+    print pexpect.run(command)
+
+def get_network():
+    # Retry if network isn't created yet
+    for i in range (1,20):
+        print "Retry is: %s" % i
+        results = pexpect.run('/opt/storageos/cli/bin/viprcli  network list')
+        result = results.split()
+        for entry in result:
+            test = re.search(r'\w+-ScaleIONetwork', entry)
+            if test is not None:
+                print "FOUND IT: %s" % test.group(0)
+                return test.group(0)
+        time.sleep(1)
+    return None
+
+def create_vp():
+    print "Creating Virtual Pool"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create -systemtype scaleio -type block -n VP1 -protocol ScaleIO -va ScaleIO_VA -pt Thick -desc VP1')
+    print "Results are: %s" % results
+
+def create_vol():
+    print "Creating Volume"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli volume create -pr admin -name TestVol1 -size 1G -vpool VP1 -va ScaleIO_VA')
+    print "Results are: %s" % results
+
+def add_keystone_auth():
+    password = 'nomoresecrete'
+    print "Adding Keystone Authorization"
+    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication add-provider -configfile /home/vagrant/auth_config.cfg')
+    child.logfile = sys.stdout
+    child.expect('Enter password of the Key1:')
+    child.sendline(password)
+    child.expect('Retype password:')
+    child.sendline(password)
+    child.expect(pexpect.EOF)
+    child.before
+    child.close()
+
+if __name__ == "__main__":
+    init()
+    login()
+    project_id = get_projects('admin')
+    add_tenant_id(project_id)
+    service_id = get_service('volumev2')
+    endpoint_id = get_endpoint('volumev2')
+    delete_endpoint(endpoint_id)
+    create_endpoint_for_ch(service_id)
