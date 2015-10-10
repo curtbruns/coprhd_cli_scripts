@@ -65,6 +65,17 @@ def add_tenant_id(pid):
     results = pexpect.run(command0)
     print "Results from add_tenant: %s" % results
 
+def create_project():
+    print "Creating Project for Admin Tenant"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n admin -tn admin')
+    print "Results are: %s" % results
+
+def tag_project(project_id):
+    print "Creating Virtual Pool"
+    command0 = '/opt/storageos/cli/bin/viprcli project tag -n admin -tn admin -add ' + project_id
+    results = pexpect.run(command0)
+    print "Results are: %s" % results
+
 def login():
     # First Logout
     print pexpect.run('/opt/storageos/cli/bin/viprcli logout')
@@ -147,8 +158,17 @@ def add_keystone_auth():
 if __name__ == "__main__":
     init()
     login()
-    project_id = get_projects('admin')
-    add_tenant_id(project_id)
+    # Add Keystone as Auth Provider
+    add_keystone_auth()
+    # Get OS Project id for admin project
+    os_project_id = get_projects('admin')
+    # Add the ID for admin project into CH
+    add_tenant_id(os_project_id)
+    # Add CH Project with admin tenant
+    create_project()
+    tag_project(os_project_id)
+
+    # Remap Volume service to CH
     service_id = get_service('volumev2')
     endpoint_id = get_endpoint('volumev2')
     delete_endpoint(endpoint_id)
