@@ -4,15 +4,20 @@ import time
 import sys
 import os
 import re
+import config
 
 def init():
     password = os.getenv('OS_PASSWORD')
     auth_url = os.getenv('OS_AUTH_URL')
     os_user  = os.getenv('OS_USERNAME')
     os_tenant = os.getenv('OS_TENANT_NAME')
+    coprhd_password = config.coprhd_password
+    coprhd_host = config.coprhd_host
     
-    if password is None or auth_url is None or os_user is None or os_tenant is None:
+    if password is None or auth_url is None or os_user is None or os_tenant is None or coprhd_password is None or coprhd_host is None:
         print "Need to set OS Credentials: OS_PASSWORD, OS_AUTH_URL, OS_USERNAME, OS_TENANT_NAME"
+        print "AND the COPRHD Credentials: COPRHD_HOST, COPRHD_PASSWORD"
+        print "Add them to your env variables"
         sys.exit(-1)
     else:
         return (0)
@@ -61,29 +66,30 @@ def delete_endpoint(id):
     print "Results of endpoint delete: %s" % results
 
 def add_tenant_id(pid):
-    command0 = '/opt/storageos/cli/bin/viprcli tenant create -n admin -domain lab -key tenant_id -value ' + pid
+    command0 = '/opt/storageos/cli/bin/viprcli -hostname '+ config.coprhd_host + ' tenant create -n admin -domain lab -key tenant_id -value ' + pid
     results = pexpect.run(command0)
     print "Results from add_tenant: %s" % results
 
 def create_project():
     print "Creating Project for Admin Tenant"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n admin -tn admin')
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n admin -tn admin -hostname ' + config.coprhd_host)
     print "Results are: %s" % results
 
 def tag_project(project_id):
     print "Tagging Admin Project "
-    command0 = '/opt/storageos/cli/bin/viprcli project tag -n admin -tn admin -add ' + project_id
+    command0 = '/opt/storageos/cli/bin/viprcli project tag -hostname ' + config.coprhd_host + ' -n admin -tn admin -add ' + project_id
     results = pexpect.run(command0)
     print "Results are: %s" % results
 
 def login():
     # First Logout
-    print pexpect.run('/opt/storageos/cli/bin/viprcli logout')
+    print pexpect.run('/opt/storageos/cli/bin/viprcli logout -hostname '+ config.coprhd_host)
     
     # Login to ViprCLI
-    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root -d /tmp')
+    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root -d /tmp -hostname ' + config.coprhd_host)
     child.logfile = sys.stdout
     password = os.getenv('VIPR_PASSWORD')
+    print child.before
     child.expect('Password.*: ')
     child.sendline(password)
     child.expect(pexpect.EOF)
@@ -92,14 +98,14 @@ def login():
 
 def set_provider():
     # Check out Storage Providers
-    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list')
+    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list -hostname ' + config.coprhd_host)
     test = re.search(r'NAME\s+INTERFACE', result)
     if test is not None:
         print "We have Storage Providers, bailing out!"
         print "Providers: %s" % result
         return(-1)
     else:
-        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 22 -u vagrant -secondary_username admin -if scaleio')
+        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 22 -u vagrant -secondary_username admin -if scaleio -hostname ' + config.coprhd_host)
         child.logfile = sys.stdout
         child.expect('Enter password of the storage provider:')
         child.sendline('vagrant')
@@ -114,15 +120,15 @@ def set_provider():
         child.close()
 
 def create_va(network):
-    print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n ScaleIO_VA')
-    command = '/opt/storageos/cli/bin/viprcli network update -varray_add ScaleIO_VA -n ' + network
+    print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n ScaleIO_VA -hostname '+ config.coprhd_host)
+    command = '/opt/storageos/cli/bin/viprcli network update -varray_add ScaleIO_VA -n ' + network + ' -hostname ' + config.coprhd_host
     print pexpect.run(command)
 
 def get_network():
     # Retry if network isn't created yet
     for i in range (1,20):
         print "Retry is: %s" % i
-        results = pexpect.run('/opt/storageos/cli/bin/viprcli  network list')
+        results = pexpect.run('/opt/storageos/cli/bin/viprcli  network list -hostname ' + config.coprhd_host)
         result = results.split()
         for entry in result:
             test = re.search(r'\w+-ScaleIONetwork', entry)
@@ -134,18 +140,18 @@ def get_network():
 
 def create_vp():
     print "Creating Virtual Pool"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create -systemtype scaleio -type block -n VP1 -protocol ScaleIO -va ScaleIO_VA -pt Thick -desc VP1')
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create -systemtype scaleio -type block -n VP1 -protocol ScaleIO -va ScaleIO_VA -pt Thick -desc VP1 -hostname '+ config.coprhd_host)
     print "Results are: %s" % results
 
 def create_vol():
     print "Creating Volume"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli volume create -pr admin -name TestVol1 -size 1G -vpool VP1 -va ScaleIO_VA')
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli volume create -pr admin -name TestVol1 -size 1G -vpool VP1 -va ScaleIO_VA -hostname ' + config.coprhd_host)
     print "Results are: %s" % results
 
 def add_keystone_auth():
     password = 'nomoresecrete'
     print "Adding Keystone Authorization"
-    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication add-provider -configfile /home/vagrant/auth_config.cfg')
+    child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication add-provider -configfile /home/vagrant/auth_config.cfg -hostname ' + config.coprhd_host)
     child.logfile = sys.stdout
     child.expect('Enter password of the Key1:')
     child.sendline(password)
@@ -157,6 +163,7 @@ def add_keystone_auth():
 
 if __name__ == "__main__":
     init()
+    print "Coprhd_host is: %s" % config.coprhd_host
     login()
     # Add Keystone as Auth Provider
     add_keystone_auth()
