@@ -7,17 +7,17 @@ import re
 import config
 
 def init():
-    password = os.getenv('OS_PASSWORD')
-    auth_url = os.getenv('OS_AUTH_URL')
-    os_user  = os.getenv('OS_USERNAME')
-    os_tenant = os.getenv('OS_TENANT_NAME')
     coprhd_password = config.coprhd_password
     coprhd_host = config.coprhd_host
+    os_password = config.os_password
+    auth_url = config.os_auth_url
+    os_user = config.os_username
+    os_tenant = config.os_tenant_name
     
     if password is None or auth_url is None or os_user is None or os_tenant is None or coprhd_password is None or coprhd_host is None:
         print "Need to set OS Credentials: OS_PASSWORD, OS_AUTH_URL, OS_USERNAME, OS_TENANT_NAME"
-        print "AND the COPRHD Credentials: COPRHD_HOST, COPRHD_PASSWORD"
-        print "Add them to your env variables"
+        print "and the COPRHD Credentials: COPRHD_HOST, COPRHD_PASSWORD"
+        print "Add them to the config.py file"
         sys.exit(-1)
     else:
         return (0)
@@ -34,6 +34,7 @@ def get_projects(name):
     raise (Exception("No ID for Admin Project"))
 
 def get_service(name):
+    print "Getting Service for volumev2"
     command0 = 'openstack service show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
@@ -55,8 +56,9 @@ def get_endpoint(name):
             return id
     raise (Exception("No ID for %s" % name)) 
 
-def create_endpoint_for_ch(name):
-    command0 = 'openstack endpoint create 031acd00c38a469eb156817266ca302e --publicurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --adminurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --internalurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --region=RegionOne'
+def create_endpoint_for_ch(service_id):
+    print "Creating Endpoint for CH in Openstack"
+    command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --adminurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --internalurl=http://10.0.0.11:8080/v2/$\(tenant_id\)s --region=RegionOne'
     results = pexpect.run(command0)
     print "Results from executing endpoint create for CH: %s" % results
 
@@ -88,36 +90,13 @@ def login():
     # Login to ViprCLI
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root -d /tmp -hostname ' + config.coprhd_host)
     child.logfile = sys.stdout
-    password = os.getenv('VIPR_PASSWORD')
+    password = config.coprhd_password
     print child.before
     child.expect('Password.*: ')
     child.sendline(password)
     child.expect(pexpect.EOF)
     print child.before
     child.close()
-
-def set_provider():
-    # Check out Storage Providers
-    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list -hostname ' + config.coprhd_host)
-    test = re.search(r'NAME\s+INTERFACE', result)
-    if test is not None:
-        print "We have Storage Providers, bailing out!"
-        print "Providers: %s" % result
-        return(-1)
-    else:
-        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 22 -u vagrant -secondary_username admin -if scaleio -hostname ' + config.coprhd_host)
-        child.logfile = sys.stdout
-        child.expect('Enter password of the storage provider:')
-        child.sendline('vagrant')
-        child.expect('Retype password:')
-        child.sendline('vagrant')
-        child.expect('Enter password of the secondary password:')
-        child.sendline('Scaleio123')
-        child.expect('Retype password:')
-        child.sendline('Scaleio123')
-        child.expect(pexpect.EOF)
-        child.before
-        child.close()
 
 def create_va(network):
     print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n ScaleIO_VA -hostname '+ config.coprhd_host)
@@ -149,7 +128,7 @@ def create_vol():
     print "Results are: %s" % results
 
 def add_keystone_auth():
-    password = 'nomoresecrete'
+    password = config.os_password
     print "Adding Keystone Authorization"
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication add-provider -configfile /home/vagrant/auth_config.cfg -hostname ' + config.coprhd_host)
     child.logfile = sys.stdout
@@ -163,6 +142,7 @@ def add_keystone_auth():
 
 if __name__ == "__main__":
     init()
+    print "Coprhd_host is: %s" % config.coprhd_host
     print "Coprhd_host is: %s" % config.coprhd_host
     login()
     # Add Keystone as Auth Provider

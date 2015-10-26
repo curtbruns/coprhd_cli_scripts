@@ -1,0 +1,10 @@
+export ROOT_PASSWORD=<password>
+export VIPR_HOSTNAME=<ip_address>
+export VIPR_PORT=4443
+export VIPR_UI_PORT=443
+export PYTHONWARNINGS=ignore
+export COPRHD_HOST=<ip_address>
+export OS_PASSWORD=nomoresecrete
+export OS_AUTH_URL=<http://IP_ADDRESS:35357/v2.0>
+export OS_USERNAME=admin
+export OS_TENANT_NAME=admin

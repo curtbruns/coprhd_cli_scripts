@@ -5,13 +5,19 @@ import os
 import re
  
 # Hack for limiting urllib3 warnins about unverified HTTPS requests
-env={'PYTHONWARNINGS':"ignore"}
+try:
+    coprhd_host = os.getenv('VIPR_HOSTNAME')
+except:
+    print "Need to set VIPR_HOSTNAME variable to IP address of CoprHD Controller"
+    sys.exit(-1)
+
+env={'PYTHONWARNINGS':"ignore",'VIPR_HOSTNAME':os.getenv('VIPR_HOSTNAME')}
 
 def init():
     password = os.getenv('VIPR_PASSWORD')
     if password is None:
         print "VIPR_PASSWORD Env Variable is not Set"
-        return (-1)
+        sys.exit(-1)
     else:
         return (0)
 
@@ -38,16 +44,16 @@ def set_provider():
         print "Providers: %s" % result
         return(-1)
     else:
-        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 22 -u vagrant -secondary_username admin -if scaleio',env=env)
+        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider create -n ScaleIO -provip 10.0.0.37 -provport 443 -u admin -ssl -if scaleioapi',env=env)
         child.logfile = sys.stdout
         child.expect('Enter password of the storage provider:')
-        child.sendline('vagrant')
-        child.expect('Retype password:')
-        child.sendline('vagrant')
-        child.expect('Enter password of the secondary password:')
         child.sendline('Scaleio123')
         child.expect('Retype password:')
         child.sendline('Scaleio123')
+#        child.expect('Enter password of the secondary password:')
+#        child.sendline('Scaleio123')
+#        child.expect('Retype password:')
+#        child.sendline('Scaleio123')
         child.expect(pexpect.EOF)
         child.before
         child.close()

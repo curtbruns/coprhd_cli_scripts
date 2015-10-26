@@ -6,7 +6,13 @@ import re
 import logging
 
 # Hack for limiting urllib3 warnins about unverified HTTPS requests
-env={'PYTHONWARNINGS':"ignore"}
+try:
+    coprhd_host = os.getenv('VIPR_HOSTNAME')
+except:
+    print "Need to set VIPR_HOSTNAME variable to IP address of CoprHD Controller"
+    sys.exit(-1)
+
+env={'PYTHONWARNINGS':"ignore",'VIPR_HOSTNAME':os.getenv('VIPR_HOSTNAME')}
 
 def init():
     password = os.getenv('VIPR_PASSWORD')
