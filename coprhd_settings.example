@@ -1,10 +1,20 @@
+# Settings for COPRHD Controller Node
 export ROOT_PASSWORD=<password>
-export VIPR_HOSTNAME=<ip_address>
-export VIPR_PORT=4443
-export VIPR_UI_PORT=443
-export PYTHONWARNINGS=ignore
 export COPRHD_HOST=<ip_address>
+export VIPR_HOSTNAME=${COPRHD_HOST}
+export COPRHD_PASSWORD=<coprhd_password>
+
+# Ignore Python Warnings for SSL 
+export PYTHONWARNINGS=ignore
+
+# OpenStack/Devstack Settings
 export OS_PASSWORD=nomoresecrete
 export OS_AUTH_URL=<http://IP_ADDRESS:35357/v2.0>
 export OS_USERNAME=admin
 export OS_TENANT_NAME=admin
+
+# ScaleIO Settings
+export SCALEIO_TB_IP=<tb_ip>
+export SCALEIO_MDM1_IP=<mdm1_ip_where_gateway_is_running>
+export SCALEIO_MDM2_IP=<mdm2_ip>
+export SCALEIO_PASSWORD=<scaleio_password>
