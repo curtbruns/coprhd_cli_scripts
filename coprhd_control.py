@@ -50,7 +50,7 @@ def login():
     child.expect('Password.*: ')
     child.sendline(password)
     child.expect(pexpect.EOF)
-    print child.before
+    #print child.before
     child.close()
 
 def set_provider():
@@ -78,6 +78,7 @@ def set_provider():
         child.close()
 
 def create_va(network):
+    print "====> Creating Virtual Array, ScaleIO_VA"
     print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n \
                         ScaleIO_VA',env=env)
     command = '/opt/storageos/cli/bin/viprcli network update -varray_add \
@@ -85,6 +86,7 @@ def create_va(network):
     print pexpect.run(command,env=env)
 
 def get_network(retry=20):
+    print "====> Searching Network"
     # Retry if network isn't created yet
     for i in range (1,retry):
         results = pexpect.run('/opt/storageos/cli/bin/viprcli  network list'
@@ -100,29 +102,32 @@ def get_network(retry=20):
     return None
 
 def create_vp():
-    print "Creating Virtual Pool"
+    print "====> Creating Virtual Pool"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
                             -systemtype scaleio -type block -n VP1 \
                             -protocol ScaleIO -va ScaleIO_VA -pt Thick \
                             -desc VP1',env=env)
-    print "Results are: %s" % results
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def create_tenant():
-    print "Creating Admin Tenant for OS integration"
+    print "====> Creating Admin Tenant"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant create -n \
                             admin -domain lab',env=env)
-    print "Results are: %s" % results
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def create_vol():
-    print "Creating Volume"
+    print "====> Creating Volume"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli volume create \
                             -tenant admin -pr admin -name TestVol1 -size 1G \
                              -vpool VP1 -va ScaleIO_VA',env=env)
-    print "Results are: %s" % results
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def add_keystone_auth():
     password = config.os_password
-    print "Adding Keystone Authorization"
+    print "====> Adding Keystone Auth"
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication \
                             add-provider -configfile \
                             /home/vagrant/auth_config.cfg',env=env)
@@ -139,33 +144,37 @@ def get_storage_system():
     results = pexpect.run('/opt/storageos/cli/bin/viprcli storagesystem list'
                         ,env=env)
     result = results.split()
-    print "Result is: %s" % result
+    #print "Result is: %s" % result
     for entry in result:
         test = re.search(r'SCALEIO\+\w+\+pdomain', entry)
         if test is not None:
-            print "FOUND IT: %s" % test.group(0)
+            #print "FOUND IT: %s" % test.group(0)
             return test.group(0)
     return None
 
 def remove_system(system):
+    print "====> Removing Storage System"
     command0 = '/opt/storageos/cli/bin/viprcli storagesystem deregister -n ' \
                 + system + ' -t scaleio'
     results = pexpect.run(command0,env=env)
-    print "Results of De-registering System: %s" % results
+    if len(results) > 0:
+        print "Results of De-registering System: %s" % results
 
     command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
                 + system + ' -t scaleio'
     results = pexpect.run(command1,env=env)
-    print "Results of Deleting System: %s" % results
+    if len(results) > 0:
+        print "Results of Deleting System: %s" % results
 
     command2 = '/opt/storageos/cli/bin/viprcli storageprovider delete -n \
                 ScaleIO'
     results = pexpect.run(command2,env=env)
-    print "Results of Deleting Provider: %s" % results
+    if len(results) > 0:
+        print "Results of Deleting Provider: %s" % results
 
 def get_endpoints(network):
     # Remove the varray from the network first
-    print "Getting Endpoints"
+    print "====> Getting Endpoints"
     command0 = '/opt/storageos/cli/bin/viprcli network show -n ' + network 
     results = pexpect.run(command0,env=env)
     json_dump = json.loads(results)
@@ -176,44 +185,56 @@ def get_endpoints(network):
 
 def remove_network(network,endpoints):
     # Remove the varray from the network first
+    print "====> Removing Varray"
     command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
                 ScaleIO_VA -n ' + network
     results = pexpect.run(command0,env=env)
-    print "Results on removing varray : %s" % results
+    if len(results) > 0:
+        print "Results on removing varray : %s" % results
 
     # De-register Network
+    print "====> De-register Network"
     command1 = '/opt/storageos/cli/bin/viprcli network deregister -n ' + network
     results = pexpect.run(command1,env=env)
-    print "Results on deregistering network : %s" % results
+    if len(results) > 0:
+        print "Results on deregistering network : %s" % results
 
     # Need to remove the endpoints before removing the network
+    print "====> Remove Network Endpoints"
     for endpoint in endpoints:
         command2 = '/opt/storageos/cli/bin/viprcli network endpoint remove -n '\
                      + network + ' -e ' + endpoint
         results = pexpect.run(command2,env=env)
-        print "Results on removing endpoint: %s" % results
+        if len(results) > 0:
+            print "Results on removing endpoint: %s" % results
 
+    print "====> Deleting Network"
     command3 = '/opt/storageos/cli/bin/viprcli network delete -n ' + network
     results = pexpect.run(command3,env=env)
-    print "Results on removing network: %s" % results
+    if len(results) > 0:
+        print "Results on removing network: %s" % results
 
 def remove_vols():
-    print "Deleting TestVol1"
+    print "====> Deleting TestVol1"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli volume delete -n \
                             TestVol1 -tenant admin -pr admin',env=env)
 
 def remove_vpool():
-    print "Removing Virtual Pool, VP1"
+    print "====> Deleting Virtual Pool, VP1"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool delete -n VP1\
                              -type block',env=env)
+    if len(results) > 0:
+        print "Results of removing Virtual Pool: %s" % results
 
 def remove_va():
-    print "Removing Virtual Array ScaleIO_VA"
+    print "====> Deleting Virtual Array, ScaleIO_VA"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli varray delete -n \
                             ScaleIO_VA',env=env)
+    if len(results) > 0:
+        print "Results of removing VArray: %s" % results
 
 def remove_project():
-    print "Removing Project named admin"
+    print "====> Deleting Admin Project"
     # Removing the tenant Admin role makes tenant unavailable but it still 
     # survives as the 'id' but it's not available via command line
 #    command0 = '/opt/storageos/cli/bin/viprcli tenant delete-role -n admin -role TENANT_ADMIN -subject-id root'
@@ -222,31 +243,39 @@ def remove_project():
 #    results = pexpect.run(command0,env=env)
 #    print "Results of Deleting Role: %s" % results
     results = pexpect.run(command1,env=env)
-    print "Results of Deleting Project: %s" % results
+    if len(results) > 0:
+        print "Results of Deleting Project: %s" % results
 
 def remove_tenant():
-    print "Removing Tenant named admin"
+    print "====> Deleting Admin Tenant"
+    """This currently fails due to tenant having an outstanding task"""
     command0 = '/opt/storageos/cli/bin/viprcli tenant delete -n admin'
     results = pexpect.run(command0,env=env)
-    print "Results of Deleting Tenant: %s" % results
+    if len(results) > 0:
+        print "Results of Deleting Tenant: %s" % results
 
 def remove_hosts():
-    print "Removing Hosts"
+    print "====> Deleting Hosts"
     command0 = '/opt/storageos/cli/bin/viprcli host delete -n '\
                 +config.scaleio_mdm1_ip+' -t Other'
     command1 = '/opt/storageos/cli/bin/viprcli host delete -n '\
                 +config.scaleio_mdm2_ip+' -t Other'
     command2 = '/opt/storageos/cli/bin/viprcli host delete -n '\
                 +config.scaleio_tb_ip+' -t Other'
-    results = pexpect.run(command0,env=env)
-    results = pexpect.run(command1,env=env)
-    results = pexpect.run(command2,env=env)
+    results0 = pexpect.run(command0,env=env)
+    results1 = pexpect.run(command1,env=env)
+    results2 = pexpect.run(command2,env=env)
+    if len(results0) > 0 or len(results1) > 0 or len(results2) > 0:
+        print "Results of deleting mdm1: %s, mdm2: %s, tb: %s" % \
+            (results0, results1, results2)
 
 def remove_key_auth():
+    print "====> Deleting Keystone Auth Provider"
     command0 = '/opt/storageos/cli/bin/viprcli authentication delete-provider \
                  -n Key1'
     results = pexpect.run(command0,env=env)
-    print "Results are: %s" % results
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def get_projects(name):
     command0 = 'openstack project show ' + name + ' -f json'
@@ -260,7 +289,7 @@ def get_projects(name):
     raise (Exception("No ID for Admin Project"))
 
 def get_service(name):
-    print "Getting Service for volumev2"
+    print "====> Getting Service for volumev2"
     command0 = 'openstack service show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
@@ -283,40 +312,38 @@ def get_os_endpoint(name):
     raise (Exception("No ID for %s" % name)) 
 
 def create_os_endpoint_for_ch(service_id):
-    print "Creating Endpoint for CH in Openstack"
-    command0 = 'openstack endpoint create ' + service_id + ' --publicurl=\
-                http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s \
-                --adminurl=http://' + config.coprhd_host +\
-                ':8080/v2/$\(tenant_id\)s --internalurl=http://'\
-                +config.coprhd_host+':8080/v2/$\(tenant_id\)s \
-                --region=RegionOne'
+    print "====> Creating Endpoint for CoprHD in OpenStack"
+    command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --adminurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --internalurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --region=RegionOne'
     results = pexpect.run(command0)
-    print "Results from executing endpoint create for CH: %s" % results
+    if len(results) > 0:
+        print "Results from executing endpoint create for CH: %s" % results
 
 def delete_os_endpoint(id):
+    print "====> Deleting OpenStack Endpoint"
     command0 = 'openstack endpoint delete ' + id
     results = pexpect.run(command0)
-    print "Results of endpoint delete: %s" % results
+    if len(results) > 0:
+        print "Results of endpoint delete: %s" % results
 
 def add_tenant_id(pid):
-    command0 = '/opt/storageos/cli/bin/viprcli -hostname '+ config.coprhd_host\
-               + ' tenant create -n admin -domain lab -key tenant_id -value '\
-               + pid
+    print "====> Adding Tenant"
+    command0 = '/opt/storageos/cli/bin/viprcli -hostname '+ config.coprhd_host+' tenant create -n admin -domain lab -key tenant_id -value ' + pid
     results = pexpect.run(command0)
-    print "Results from add_tenant: %s" % results
+    if len(results) > 0:
+        print "Results from add_tenant: %s" % results
 
 def create_project():
-    print "Creating Project for Admin Tenant"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n \
-                        admin -tn admin -hostname ' + config.coprhd_host)
-    print "Results are: %s" % results
+    print "====> Creating Admin Project"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n admin -tn admin -hostname ' + config.coprhd_host)
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def tag_project(project_id):
-    print "Tagging Admin Project "
-    command0 = '/opt/storageos/cli/bin/viprcli project tag -hostname ' + \
-                config.coprhd_host + ' -n admin -tn admin -add ' + project_id
+    print "====> Tagging Admin Project"
+    command0 = '/opt/storageos/cli/bin/viprcli project tag -hostname ' + config.coprhd_host + ' -n admin -tn admin -add ' + project_id
     results = pexpect.run(command0)
-    print "Results are: %s" % results
+    if len(results) > 0:
+        print "Results are: %s" % results
 
 def os_integration():
     """OS Integration adds the OpenStack pieces into CH and 
@@ -346,7 +373,8 @@ def coprhd_setup():
     # These are done in OS_Integration Step
     #    create_tenant()
     #    create_project()
-    create_vol()
+    # Don't create vol - tenant can't be deleted if vol is created
+    # create_vol()
 
 def coprhd_delete():
     network = get_network(retry=2)
@@ -355,13 +383,13 @@ def coprhd_delete():
     else:
         endpoints = get_endpoints(network)
         remove_network(network,endpoints)
-    remove_vols()
+    # Debug - see if this is causing issue with tenant delete
+    # remove_vols()
     remove_vpool()
     remove_va()
     remove_hosts()
-    sys.exit(-1)
-# Debugging these steps - can't seem to delete tenant/project
     remove_project()
+    # If volumes were created, you cannot remove tenant
     remove_tenant()
     remove_key_auth()
     system = get_storage_system()
@@ -382,11 +410,14 @@ def coprhd_check():
 
     print "====> Virtual Pool(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli vpool list')
-    print pexpect.run(command0,env=env)
+    data = pexpect.run(command0,env=env)
+    print data
 
-    print "====> Volume(s)"
-    command0 = '/opt/storageos/cli/bin/viprcli volume list -pr admin -tn admin'
-    print pexpect.run(command0,env=env)
+    if len(data) > 0:
+        print "====> Volume(s)"
+        command0 = '/opt/storageos/cli/bin/viprcli volume list -pr admin \
+                    -tn admin'
+        print pexpect.run(command0,env=env)
 
 if __name__ == "__main__":
     args = init()
