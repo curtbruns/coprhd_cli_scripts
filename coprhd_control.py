@@ -130,7 +130,7 @@ def add_keystone_auth():
     print "====> Adding Keystone Auth"
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication \
                             add-provider -configfile \
-                            /home/vagrant/auth_config.cfg',env=env)
+                            ./auth_config.cfg',env=env)
     child.logfile = sys.stdout
     child.expect('Enter password of the Key1:')
     child.sendline(password)
@@ -281,35 +281,32 @@ def get_projects(name):
     command0 = 'openstack project show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
-    for field in json_dump:
-        if field['Field'] == 'id':
-            id = field['Value']
-            print "Id is: %s" % id
-            return id
-    raise (Exception("No ID for Admin Project"))
+    try:
+        id = json_dump['id']
+        return id
+    except:
+        raise(Exception("No ID For Admin Project"))
 
 def get_service(name):
     print "====> Getting Service for volumev2"
     command0 = 'openstack service show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
-    for field in json_dump:
-        if field['Field'] == 'id':
-            id = field['Value']
-            print "Id is: %s" % id
-            return id
-    raise (Exception("No ID for %s" % name)) 
+    try:
+        id = json_dump['id']
+        return id
+    except:
+        raise(Exception("No ID For Admin Project"))
 
 def get_os_endpoint(name):
     command0 = 'openstack endpoint show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
-    for field in json_dump:
-        if field['Field'] == 'id':
-            id = field['Value']
-            print "Id is: %s" % id
-            return id
-    raise (Exception("No ID for %s" % name)) 
+    try:
+        id = json_dump['id']
+        return id
+    except:
+        raise(Exception("No ID For Admin Project"))
 
 def create_os_endpoint_for_ch(service_id):
     print "====> Creating Endpoint for CoprHD in OpenStack"
@@ -412,12 +409,16 @@ def coprhd_check():
     command0 = ('/opt/storageos/cli/bin/viprcli vpool list')
     data = pexpect.run(command0,env=env)
     print data
-
     if len(data) > 0:
         print "====> Volume(s)"
         command0 = '/opt/storageos/cli/bin/viprcli volume list -pr admin \
                     -tn admin'
         print pexpect.run(command0,env=env)
+
+    print "====> Authentication Provider(s)"
+    command0 = ('/opt/storageos/cli/bin/viprcli authentication list-providers')
+    data = pexpect.run(command0,env=env)
+    print data
 
 if __name__ == "__main__":
     args = init()
