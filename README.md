@@ -1,27 +1,20 @@
 # coprhd_cli_scripts
-CoprHD Cli (viprcli) scripts to setup and teardown for Testing via Command line
+CoprHD Cli (viprcli) scripts to setup and teardown for testing via command-line
 
 ## Prerequisites
-1. Devstack setup (can use this one: https://github.com/curtbruns/devstackKilo)
-2. CoprHD with Cinder API integration (https://github.com/CoprHD/CoprHD.github.io) branch: feature-cinderapi
-* Use the vagrant box (https://github.com/vchrisb/vagrant-coprhd) to get started and re-build the feature-cinderapi branch
-3. ScaleIO Cluster (https://github.com/jonasrosland/vagrant-scaleio)
-4. Vagrant
-5. Virtualbox
+1. All-in-one Vagrant setup (https://github.com/curtbruns/coprhd_aio) which includes Devstack, ScaleIO and CoprHD
+2. This repo will be cloned as part of Pre-req 1 in /opt/storageos/coprhd_cli_scripts
+3. Modify coprhd_settings file to match your environment (IPs, Passwords, etc)
 
 ##Execution Flow
-1. vagrant up the Devstack box
-2. vagrant up the ScaleIO box
-3. vagrant up the CoprHD box
-4. On the CoprHD VM:
-* % python os_integration.py
-* % python coprhd_setup.py
-* You've now setup Devstack to point to CoprHD for VolumeV2 operations
-* The admin tenant/project on Devstack points to the Admin Tenant/Project on CoprHD
-
-## Test It
-1. Create a 1GB Volume in Cinder in the CoprHD Virtual Pool (VP1), which is mapped as a volume type in Cinder
-* % cinder --debug create --volume-type VP1 --name CinderTest 1
-* You should see the CinderTest volume created in both the CorpHD GUI and Cinder List and Horizon 
-
-
+* Make sure coprhd_settings matches your environment
+* Source the coprhd_settings file
+* Check coprhd seteup:
+  * ./coprhd -c 
+* Register Keystone as Auth provider, Setup ScaleIO as Storage Provider, Create VPool, VArray, Project, Tenant, and update Devstack to use CoprHD as Volume Service:
+  * ./coprhd -s
+* Delete all traces of CoprHD setup (remove Auth provider, VPool, Varray, Project, Tenant)
+  * ./coprhd -d
+  * Note: This doesn't revert the Keystone Endpoint back to Using Cinder as VolumeV2 service
+* Partial Setup (Only Add ScaleIO as backend with Varray/Vpool and Project setup - no Devstack/Keystone changes or Auth provider added)
+  * ./coprhd -p
