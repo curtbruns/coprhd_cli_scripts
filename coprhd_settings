@@ -1,0 +1,20 @@
+# Settings for COPRHD Controller Node
+export ROOT_PASSWORD=vagrant
+export COPRHD_HOST=192.168.100.11
+export VIPR_HOSTNAME=${COPRHD_HOST}
+export COPRHD_PASSWORD=ChangeMe
+
+# Ignore Python Warnings for SSL 
+export PYTHONWARNINGS=ignore
+
+# OpenStack/Devstack Settings
+export OS_PASSWORD=nomoresecrete
+export OS_AUTH_URL=http://192.168.100.5:35357/v2.0
+export OS_USERNAME=admin
+export OS_TENANT_NAME=admin
+
+# ScaleIO Settings
+export SCALEIO_TB_IP=192.168.100.21
+export SCALEIO_MDM1_IP=192.168.100.22
+export SCALEIO_MDM2_IP=192.168.100.23
+export SCALEIO_PASSWORD=Scaleio123
