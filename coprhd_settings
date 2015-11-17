@@ -13,6 +13,7 @@ export OS_PASSWORD=nomoresecrete
 export OS_AUTH_URL=http://192.168.100.5:35357/v2.0
 export OS_USERNAME=admin
 export OS_TENANT_NAME=admin
+export OS_VOLUME_API_VERSION=2
 
 # ScaleIO Settings
 export SCALEIO_TB_IP=192.168.100.21
