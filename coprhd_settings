@@ -2,6 +2,7 @@
 export ROOT_PASSWORD=vagrant
 export COPRHD_HOST=192.168.100.11
 export VIPR_HOSTNAME=${COPRHD_HOST}
+# You will need to update this if you login to Web dashboard
 export COPRHD_PASSWORD=ChangeMe
 
 # Ignore Python Warnings for SSL 
@@ -18,3 +19,8 @@ export SCALEIO_TB_IP=192.168.100.21
 export SCALEIO_MDM1_IP=192.168.100.22
 export SCALEIO_MDM2_IP=192.168.100.23
 export SCALEIO_PASSWORD=Scaleio123
+
+# Some useful aliases
+alias dbs='tail -f /opt/storageos/logs/dbsvc.log'
+alias api='tail -f /opt/storageos/logs/apisvc.log'
+alias cos='tail -f /opt/storageos/logs/coordinatorsvc.log'
