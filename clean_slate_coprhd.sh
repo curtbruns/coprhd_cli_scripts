@@ -1,7 +1,7 @@
 #!/bin/bash
 source coprhd_settings
 # Stop Services
-sudo /etc/storageos/storageos stop
+echo ${ROOT_PASSWORD} | su -c "/etc/storageos/storageos stop"
 # Delete Database and all Data
 sleep 2
 echo ${ROOT_PASSWORD} | su -c "rm -vrf /data/db/*"
@@ -11,4 +11,4 @@ sleep 2
 #echo "Not restarting the services...do what you need to do..."
 echo "Restarting Services after cleaning"
 echo
-sudo /etc/storageos/storageos start
+echo ${ROOT_PASSWORD} | su -c "/etc/storageos/storageos start"

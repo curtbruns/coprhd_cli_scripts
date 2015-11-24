@@ -43,6 +43,7 @@ def init():
     return args
 
 def login():
+    print "====> Logging into CoprHD"
     # Check User is storageos
     if getpass.getuser() != 'storageos':
         print "You need to be storageos to run this correctly!"
@@ -54,7 +55,7 @@ def login():
     # Login to ViprCLI
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root \
                             -d /tmp',env=env)
-    child.logfile = sys.stdout
+    #child.logfile = sys.stdout
     password = config.coprhd_password
     child.expect('Password.*: ')
     child.sendline(password)
@@ -67,6 +68,7 @@ def login():
 	sys.exit(-1)
 
 def set_provider():
+    print "====> Adding Storage Provider"
     # Check out Storage Providers
     result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
                         ,env=env)
@@ -81,7 +83,7 @@ def set_provider():
                             create -n ScaleIO -provip '+config.scaleio_mdm1_ip+\
                             ' -provport 443 -u admin -ssl -if scaleioapi',
                             env=env)
-        child.logfile = sys.stdout
+        #child.logfile = sys.stdout
         child.expect('Enter password of the storage provider:')
         child.sendline(password)
         child.expect('Retype password:')
@@ -144,7 +146,7 @@ def add_keystone_auth():
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication \
                             add-provider -configfile \
                             ./auth_config.cfg',env=env)
-    child.logfile = sys.stdout
+    #child.logfile = sys.stdout
     child.expect('Enter password of the Key1:')
     child.sendline(password)
     child.expect('Retype password:')
@@ -154,6 +156,7 @@ def add_keystone_auth():
     child.close()
 
 def get_storage_system():
+    print "====> Get Storage System"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli storagesystem list'
                         ,env=env)
     result = results.split()
@@ -326,7 +329,8 @@ def create_os_endpoint_for_ch(service_id):
     command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --adminurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --internalurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --region=RegionOne'
     results = pexpect.run(command0)
     if len(results) > 0:
-        print "Results from executing endpoint create for CH: %s" % results
+        print "Results from executing endpoint create for CH: "
+	print "%s" % results
 
 def delete_os_endpoint(id):
     print "====> Deleting OpenStack Endpoint"
