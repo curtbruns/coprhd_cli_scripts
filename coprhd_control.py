@@ -249,15 +249,13 @@ def remove_va():
     if len(results) > 0:
         print "Results of removing VArray: %s" % results
 
-def remove_project():
-    print "====> Deleting Admin Project"
-    # Removing the tenant Admin role makes tenant unavailable but it still 
-    # survives as the 'id' but it's not available via command line
-#    command0 = '/opt/storageos/cli/bin/viprcli tenant delete-role -n admin -role TENANT_ADMIN -subject-id root'
-    command1 = '/opt/storageos/cli/bin/viprcli project delete -n admin \
-                -tn admin'
-#    results = pexpect.run(command0,env=env)
-#    print "Results of Deleting Role: %s" % results
+def remove_project(project='Admin', tenant=None):
+    print "====> Deleting " + project + " Project"
+    if tenant is None:
+	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project
+    else:
+	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project + \
+                '-tn ' + tenant
     results = pexpect.run(command1,env=env)
     if len(results) > 0:
         print "Results of Deleting Project: %s" % results
@@ -411,15 +409,15 @@ def coprhd_delete():
     else:
         endpoints = get_endpoints(network)
         remove_network(network,endpoints)
-    # Debug - see if this is causing issue with tenant delete
+    # If there were vols, we can't remove tenants
     # remove_vols()
     remove_vpool()
     remove_va()
     remove_hosts()
-    remove_project()
+    remove_project(project='TestProject')
     # If volumes were created, you cannot remove tenant
-    remove_tenant()
-    remove_key_auth()
+    #remove_tenant()
+    #remove_key_auth()
     system = get_storage_system()
     if system is None:
         print "Error - No Storage System - Abort!"
@@ -427,7 +425,7 @@ def coprhd_delete():
     remove_system(system)
 
 
-def coprhd_check():
+def coprhd_check(project='admin', tenant='admin'):
     print "====> Storage System(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli storagesystem list')
     print pexpect.run(command0,env=env)
@@ -441,9 +439,13 @@ def coprhd_check():
     data = pexpect.run(command0,env=env)
     print data
     if len(data) > 0:
-        print "====> Volume(s) for Project: Admin, Tenant: Admin"
-        command0 = '/opt/storageos/cli/bin/viprcli volume list -pr admin \
-                    -tn admin'
+	if tenant is None:
+            print "====> Volume(s) for Project: " + project 
+            command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project
+        else:
+            print "====> Volume(s) for Project: " + project + ", Tenant: "+tenant
+            command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project+\
+                    ' -tn ' + tenant
         print pexpect.run(command0,env=env)
 
     print "====> Authentication Provider(s)"
@@ -455,11 +457,13 @@ if __name__ == "__main__":
     args = init()
     login()
     if args.setup:
-        coprhd_setup()
+	print "Not doing OS Integration for Demo!"
+	print "I think you want the -p (partial) option"
+#        coprhd_setup()
     elif args.delete:
         coprhd_delete()
     elif args.check:
-        coprhd_check()
+        coprhd_check(project='TestProject', tenant=None)
     elif args.partial:
 	coprhd_scaleio_only()
 
