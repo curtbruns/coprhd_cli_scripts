@@ -1,5 +1,5 @@
 # Settings for COPRHD Controller Node
-export ROOT_PASSWORD=vagrant
+export ROOT_PASSWORD=ChangeMe
 export COPRHD_HOST=192.168.100.11
 export VIPR_HOSTNAME=${COPRHD_HOST}
 # You will need to update this if you login to Web dashboard

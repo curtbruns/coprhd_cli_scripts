@@ -208,13 +208,21 @@ def get_endpoints(network):
     print "Endpoints are: %s" % json_dump['endpoints']
     return(json_dump['endpoints'])
     
-
 def remove_network(network,endpoints):
     # Remove the varray from the network first
-    remove_va()
+    print "====> Getting Varray on this Network"
+    command0 = '/opt/storageos/cli/bin/viprcli network show -n ' + network
+    results = pexpect.run(command0,env=env)
+    json_dump = json.loads(results)
+    varray = json_dump['connected_varrays'][0]
+    # Pull Endpoints
+    print "Connected Varray is: %s" % varray
+    print "====> Removing Varray From Network"
+    command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
+                 ' + varray + ' -n ' + network
     results = pexpect.run(command0,env=env)
     if len(results) > 0:
-        print "Results on removing varray : %s" % results
+        print "Results on updating network to remove varray : %s" % results
 
     # De-register Network
     print "====> De-register Network"
