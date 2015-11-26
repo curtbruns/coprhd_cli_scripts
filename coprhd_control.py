@@ -117,13 +117,23 @@ def get_network(retry=20):
     return None
 
 def create_vp():
-    print "====> Creating Virtual Pool"
+    print "====> Creating Virtual Pool: ThickSATA"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
-                            -systemtype scaleio -type block -n VP1 \
+                            -systemtype scaleio -type block -n ThickSATA \
                             -protocol ScaleIO -va ScaleIO_VA -pt Thick \
                             -desc VP1',env=env)
     if len(results) > 0:
         print "Results are: %s" % results
+        sys.exit(-1)
+
+    print "====> Creating Virtual Pool: ThinSATA"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
+                            -systemtype scaleio -type block -n ThinSATA\
+                            -protocol ScaleIO -va ScaleIO_VA -pt Thin\
+                            -desc VP2',env=env)
+    if len(results) > 0:
+        print "Results are: %s" % results
+        sys.exit(-1)
 
 def create_tenant():
     print "====> Creating Admin Tenant"
@@ -201,9 +211,7 @@ def get_endpoints(network):
 
 def remove_network(network,endpoints):
     # Remove the varray from the network first
-    print "====> Removing Varray"
-    command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
-                ScaleIO_VA -n ' + network
+    remove_va()
     results = pexpect.run(command0,env=env)
     if len(results) > 0:
         print "Results on removing varray : %s" % results
@@ -231,34 +239,100 @@ def remove_network(network,endpoints):
         print "Results on removing network: %s" % results
 
 def remove_vols():
-    print "====> Deleting TestVol1"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli volume delete -n \
-                            TestVol1 -tenant admin -pr admin',env=env)
-
-def remove_vpool():
-    print "====> Deleting Virtual Pool, VP1"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool delete -n VP1\
-                             -type block',env=env)
+    print "====> Get Volumes"
+    project = get_project()
+    if project is None:
+        return
+    command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project
+    results = pexpect.run(command0,env=env)
     if len(results) > 0:
-        print "Results of removing Virtual Pool: %s" % results
+        result = results.split('\n')
+        # Skip header row and grap Volumes
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            print "====> Deleting Volume: %s" % entry
+            command = '/opt/storageos/cli/bin/viprcli volume delete -n '+\
+                    entry+' -pr '+ project
+            results = pexpect.run(command,env=env)
+            if len(results) > 0:
+                print "Deleting Volume " + entry + " results: %s" % results
+                sys.exit(-1)
+    else:
+        print "No Volumes to Delete"
 
 def remove_va():
-    print "====> Deleting Virtual Array, ScaleIO_VA"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli varray delete -n \
-                            ScaleIO_VA',env=env)
+    print "====> Get Varray Names"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli varray list',env=env)
     if len(results) > 0:
-        print "Results of removing VArray: %s" % results
+        result = results.split()
+        for entry in result:
+            if entry != "NAME":
+                print "====> Deleting Varray: %s" % entry
+                command = '/opt/storageos/cli/bin/viprcli varray delete -n '+entry
+                results = pexpect.run(command,env=env)
+                if len(results) > 0:
+                    print "Deleting varray " + entry + " results: %s" % results
+                    sys.exit(-1)
+                
+def remove_vpool():
+    print "====> Get Vpool Names"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool list',env=env)
+
+    if len(results) > 0:
+        result = results.split('\n')
+        # Skip header row and grap Vpools
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            print "====> Deleting VPool: %s" % entry
+            command = '/opt/storageos/cli/bin/viprcli vpool delete -n '+\
+                    entry+' -type block'
+            results = pexpect.run(command,env=env)
+            if len(results) > 0:
+                print "Deleting Vpool " + entry + " results: %s" % results
+                sys.exit(-1)
+
+#def remove_va():
+#    print "====> Deleting Virtual Array, ScaleIO_VA"
+#    vpool = get_varray()
+#    results = pexpect.run('/opt/storageos/cli/bin/viprcli varray delete -n \
+#                            ScaleIO_VA',env=env)
+#    if len(results) > 0:
+#        print "Results of removing VArray: %s" % results
+
+# Returns the first project found.  For Dev-Test, hopefully only one exists
+def get_project():
+    print "====> Get Project"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli project list',env=env)
+    if len(results) > 0:
+        result = results.split()
+        for entry in result:
+            if entry != "NAME":
+                return(entry)
+    else:
+        print "No Projects Are Defined"
+        return None
 
 def remove_project(project='Admin', tenant=None):
-    print "====> Deleting " + project + " Project"
-    if tenant is None:
-	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project
-    else:
-	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project + \
-                '-tn ' + tenant
-    results = pexpect.run(command1,env=env)
+    project = get_project()
+    if project is None: 
+        return
+    print "====> Deleting Project : %s" % project
+    command = '/opt/storageos/cli/bin/viprcli project delete -n '+project
+    results = pexpect.run(command,env=env)
     if len(results) > 0:
-        print "Results of Deleting Project: %s" % results
+        print "Deleting project " + entry + " results: %s" % results
+        sys.exit(-1)
+    
+#    print "====> Deleting " + project + " Project"
+#    if tenant is None:
+#	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project
+#    else:
+#	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project + \
+#                '-tn ' + tenant
+#    results = pexpect.run(command1,env=env)
+#    if len(results) > 0:
+#        print "Results of Deleting Project: %s" % results
+#
 
 def remove_tenant():
     print "====> Deleting Admin Tenant"
@@ -410,7 +484,7 @@ def coprhd_delete():
         endpoints = get_endpoints(network)
         remove_network(network,endpoints)
     # If there were vols, we can't remove tenants
-    # remove_vols()
+    remove_vols()
     remove_vpool()
     remove_va()
     remove_hosts()
@@ -420,7 +494,7 @@ def coprhd_delete():
     #remove_key_auth()
     system = get_storage_system()
     if system is None:
-        print "Error - No Storage System - Abort!"
+        print "No Storage System to Delete"
         sys.exit(-1)
     remove_system(system)
 
