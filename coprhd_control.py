@@ -352,18 +352,23 @@ def remove_tenant():
 
 def remove_hosts():
     print "====> Deleting Hosts"
-    command0 = '/opt/storageos/cli/bin/viprcli host delete -n '\
-                +config.scaleio_mdm1_ip+' -t Other'
-    command1 = '/opt/storageos/cli/bin/viprcli host delete -n '\
-                +config.scaleio_mdm2_ip+' -t Other'
-    command2 = '/opt/storageos/cli/bin/viprcli host delete -n '\
-                +config.scaleio_tb_ip+' -t Other'
-    results0 = pexpect.run(command0,env=env)
-    results1 = pexpect.run(command1,env=env)
-    results2 = pexpect.run(command2,env=env)
-    if len(results0) > 0 or len(results1) > 0 or len(results2) > 0:
-        print "Results of deleting mdm1: %s, mdm2: %s, tb: %s" % \
-            (results0, results1, results2)
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli host list',env=env)
+
+    if len(results) > 0:
+        result = results.split('\n')
+        # Skip header row and grap hosts
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            host_type = (result[i].split())[2]
+            print "====> Deleting Host: %s" % entry
+            command = '/opt/storageos/cli/bin/viprcli host delete -n '+\
+                    entry + ' -t ' + host_type
+            results = pexpect.run(command,env=env)
+            if len(results) > 0:
+                print "Deleting Host " + entry + " results: %s" % results
+                sys.exit(-1)
+    else:
+        print "No Hosts to Delete"
 
 def remove_key_auth():
     print "====> Deleting Keystone Auth Provider"
