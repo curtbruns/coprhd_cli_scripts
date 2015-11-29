@@ -100,20 +100,24 @@ def create_va(network):
                 ScaleIO_VA -n ' + network
     print pexpect.run(command,env=env)
 
-def get_network(retry=20):
+def get_networks(retry=20):
+    network_list = []
     print "====> Searching Network"
     # Retry if network isn't created yet
     for i in range (1,retry):
-        results = pexpect.run('/opt/storageos/cli/bin/viprcli  network list'
+        results = pexpect.run('/opt/storageos/cli/bin/viprcli network list'
                                 ,env=env)
-        result = results.split()
-        for entry in result:
-            test = re.search(r'\w+-ScaleIONetwork', entry)
-            if test is not None:
-                print "FOUND IT: %s" % test.group(0)
-                return test.group(0)
-        time.sleep(1)
-        print "Retry is: %s" % i
+        if len(results) > 0:
+            result = results.split('\n')
+            # Skip header row and grab Networks
+            for i in range (1, len(result)-1):
+                entry = (result[i].split())[0]
+                print "====> Found Network: %s" % entry
+                network_list.append(entry)
+            return network_list
+        else:
+            time.sleep(1)
+            print "Retry is: %s" % i
     return None
 
 def create_vp():
@@ -165,38 +169,68 @@ def add_keystone_auth():
     child.before
     child.close()
 
-def get_storage_system():
-    print "====> Get Storage System"
+def get_storage_systems():
+    system_list = []
+    print "====> Get Storage Systems"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli storagesystem list'
                         ,env=env)
     result = results.split()
-    #print "Result is: %s" % result
-    for entry in result:
-        test = re.search(r'SCALEIO\+\w+\+pdomain', entry)
-        if test is not None:
-            #print "FOUND IT: %s" % test.group(0)
-            return test.group(0)
-    return None
-
-def remove_system(system):
-    print "====> Removing Storage System"
-    command0 = '/opt/storageos/cli/bin/viprcli storagesystem deregister -n ' \
-                + system + ' -t scaleio'
-    results = pexpect.run(command0,env=env)
     if len(results) > 0:
-        print "Results of De-registering System: %s" % results
+        result = results.split('\n')
+        # Skip header row and grab System and Type
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            sys_type = (result[i].split())[2]
+            sys_dict = dict()
+            sys_dict[entry] = sys_type
+            print "====> Found System %s and Type: %s" % (entry, sys_type)
+            system_list.append(sys_dict)
+            #print "System list is: %s" % system_list
+        return system_list
+    else:
+        return None
 
-    command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
-                + system + ' -t scaleio'
-    results = pexpect.run(command1,env=env)
+def get_storage_providers():
+    system_list = []
+    print "====> Get Storage Providers"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
+                        ,env=env)
+    result = results.split()
     if len(results) > 0:
-        print "Results of Deleting System: %s" % results
+        result = results.split('\n')
+        # Skip header row and grab Provider
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            system_list.append(entry)
+        return system_list
+    else:
+        return None
 
-    command2 = '/opt/storageos/cli/bin/viprcli storageprovider delete -n \
-                ScaleIO'
-    results = pexpect.run(command2,env=env)
-    if len(results) > 0:
-        print "Results of Deleting Provider: %s" % results
+def remove_systems(system_list):
+    print "====> Removing Storage Systems"
+    for system in system_list:
+        print "Removing This one: %s" % system
+        for name, sys_type in system.iteritems():
+            command0 = '/opt/storageos/cli/bin/viprcli storagesystem deregister -n ' \
+                 + name + ' -t ' + sys_type
+        results = pexpect.run(command0,env=env)
+        if len(results) > 0:
+            print "Results of De-registering System: %s" % results
+
+        command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
+                + name + ' -t ' + sys_type
+        results = pexpect.run(command1,env=env)
+        if len(results) > 0:
+            print "Results of Deleting System: %s" % results
+
+def remove_providers(providers):
+    print "====> Removing Storage Providers"
+    for system in providers:
+        print "Removing This one: %s" % system
+        command0 = '/opt/storageos/cli/bin/viprcli storageprovider delete -n ' + system 
+        results = pexpect.run(command0,env=env)
+        if len(results) > 0:
+            print "Results of Deleting Provider: %s" % results
 
 def get_endpoints(network):
     # Remove the varray from the network first
@@ -469,12 +503,18 @@ def coprhd_setup():
     os_integration()
     # Setup CoprHD
     set_provider()    
-    network = get_network(20)
-    if network is None:
+    networks = get_networks(20)
+    # Only setup ScaleIO Network for VA
+    if networks is None:
         print "Error - No Network - Abort!"
         sys.exit(-1)
-    create_va(network)
-    create_vp()
+    else:
+        for network in networks:
+            test = re.search(r'\w+-ScaleIONetwork', network)
+            if test is not None:
+                print "ScaleIO Network Found: %s" % network
+                create_va(network)
+                create_vp()
     # Don't create vol - tenant can't be deleted if vol is created
     # create_vol()
 
@@ -482,20 +522,27 @@ def coprhd_scaleio_only():
     create_project_for_scaleio_only()
     # Setup CoprHD
     set_provider()
-    network = get_network(20)
-    if network is None:
+    networks = get_networks(20)
+    # Only setup ScaleIO Network for VA
+    if networks is None:
         print "Error - No Network - Abort!"
         sys.exit(-1)
-    create_va(network)
-    create_vp()
+    else:
+        for network in networks:
+            test = re.search(r'\w+-ScaleIONetwork', network)
+            if test is not None:
+                print "ScaleIO Network Found: %s" % network
+                create_va(network)
+                create_vp()
 
 def coprhd_delete():
-    network = get_network(retry=2)
-    if network is None:
-        print "No Network to Delete"
+    networks = get_networks(retry=2)
+    if networks is None:
+        print "No Network to delete"
     else:
-        endpoints = get_endpoints(network)
-        remove_network(network,endpoints)
+        for network in networks:
+            endpoints = get_endpoints(network)
+            remove_network(network,endpoints)
     # If there were vols, we can't remove tenants
     remove_vols()
     remove_vpool()
@@ -505,17 +552,31 @@ def coprhd_delete():
     # If volumes were created, you cannot remove tenant
     #remove_tenant()
     #remove_key_auth()
-    system = get_storage_system()
-    if system is None:
+    systems = get_storage_systems()
+    if systems is None:
         print "No Storage System to Delete"
-        sys.exit(-1)
-    remove_system(system)
+    else:
+        remove_systems(systems)
+    providers = get_storage_providers()
+    if providers is None:
+        print "No Storage Providers to Delete"
+    else:
+        remove_providers(providers)
 
 
 def coprhd_check(project='admin', tenant='admin'):
+    print "====> Storage Provider(s)"
+    command0 = ('/opt/storageos/cli/bin/viprcli storageprovider list')
+    print pexpect.run(command0,env=env)
+
     print "====> Storage System(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli storagesystem list')
     print pexpect.run(command0,env=env)
+
+    print "====> Network(s)"
+    networks = get_networks(retry=2)
+    if networks is not None:
+        print networks
 
     print "====> Virtual Array(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli varray list')
