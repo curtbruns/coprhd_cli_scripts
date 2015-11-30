@@ -117,7 +117,8 @@ def get_networks(retry=20):
             return network_list
         else:
             time.sleep(1)
-            print "Retry is: %s" % i
+            if i > 1:
+                print "Retry is: %s" % i
     return None
 
 def create_vp():
@@ -248,15 +249,16 @@ def remove_network(network,endpoints):
     command0 = '/opt/storageos/cli/bin/viprcli network show -n ' + network
     results = pexpect.run(command0,env=env)
     json_dump = json.loads(results)
-    varray = json_dump['connected_varrays'][0]
-    # Pull Endpoints
-    print "Connected Varray is: %s" % varray
-    print "====> Removing Varray From Network"
-    command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
-                 ' + varray + ' -n ' + network
-    results = pexpect.run(command0,env=env)
-    if len(results) > 0:
-        print "Results on updating network to remove varray : %s" % results
+    if 'connected_varrays' in json_dump:
+        varray = json_dump['connected_varrays'][0]
+        # Remove Varray from Network
+        print "Connected Varray is: %s" % varray
+        print "====> Removing Varray From Network"
+        command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
+                ' + varray + ' -n ' + network
+        results = pexpect.run(command0,env=env)
+        if len(results) > 0:
+            print "Results on updating network to remove varray : %s" % results
 
     # De-register Network
     print "====> De-register Network"
@@ -280,10 +282,35 @@ def remove_network(network,endpoints):
     if len(results) > 0:
         print "Results on removing network: %s" % results
 
+def remove_export_groups():
+    print "====> Delete Export Groups"
+    project = get_project()
+    if project is None:
+        print "No Project, therefore No Volumes to Delete"
+        return
+    command0 = '/opt/storageos/cli/bin/viprcli exportgroup list -pr '+ project
+    results = pexpect.run(command0,env=env)
+    if len(results) > 0:
+        result = results.split('\n')
+        # Skip header row and grab Data
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            print "====> Deleting Export Group : %s" % entry
+            command = '/opt/storageos/cli/bin/viprcli exportgroup delete -n '+\
+                    entry+' -pr '+ project
+            results = pexpect.run(command,env=env)
+            if len(results) > 0:
+                print "Deleting ExportGroup " + entry + " results: %s" % results
+                sys.exit(-1)
+    else:
+        print "No Export Groups to Delete"
+
+
 def remove_vols():
     print "====> Get Volumes"
     project = get_project()
     if project is None:
+        print "No Project, therefore No Volumes to Delete"
         return
     command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project
     results = pexpect.run(command0,env=env)
@@ -303,7 +330,7 @@ def remove_vols():
         print "No Volumes to Delete"
 
 def remove_va():
-    print "====> Get Varray Names"
+    print "====> Removing Varays"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli varray list',env=env)
     if len(results) > 0:
         result = results.split()
@@ -315,9 +342,11 @@ def remove_va():
                 if len(results) > 0:
                     print "Deleting varray " + entry + " results: %s" % results
                     sys.exit(-1)
+    else:
+        print "No Varrays to Delete"
                 
 def remove_vpool():
-    print "====> Get Vpool Names"
+    print "====> Deleting VPools"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool list',env=env)
 
     if len(results) > 0:
@@ -332,6 +361,8 @@ def remove_vpool():
             if len(results) > 0:
                 print "Deleting Vpool " + entry + " results: %s" % results
                 sys.exit(-1)
+    else:
+        print "No Vpools To Delete"
 
 #def remove_va():
 #    print "====> Deleting Virtual Array, ScaleIO_VA"
@@ -385,7 +416,7 @@ def remove_tenant():
         print "Results of Deleting Tenant: %s" % results
 
 def remove_hosts():
-    print "====> Deleting Hosts"
+    print "====> Removing Hosts"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli host list',env=env)
 
     if len(results) > 0:
@@ -541,6 +572,7 @@ def coprhd_delete():
         print "No Network to delete"
     else:
         for network in networks:
+            remove_export_groups()
             endpoints = get_endpoints(network)
             remove_network(network,endpoints)
     # If there were vols, we can't remove tenants
@@ -611,7 +643,8 @@ if __name__ == "__main__":
     elif args.delete:
         coprhd_delete()
     elif args.check:
-        coprhd_check(project='TestProject', tenant=None)
+        project = get_project()
+        coprhd_check(project=project, tenant=None)
     elif args.partial:
 	coprhd_scaleio_only()
 
