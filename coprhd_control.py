@@ -129,15 +129,6 @@ def create_vp():
         print "Results are: %s" % results
         sys.exit(-1)
 
-    print "====> Creating Virtual Pool: ThinSATA"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
-                            -systemtype scaleio -type block -n ThinSATA\
-                            -protocol ScaleIO -va ScaleIO_VA -pt Thin\
-                            -desc VP2',env=env)
-    if len(results) > 0:
-        print "Results are: %s" % results
-        sys.exit(-1)
-
 def create_tenant():
     print "====> Creating Admin Tenant"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant create -n \
