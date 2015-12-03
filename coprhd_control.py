@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import pexpect
 import time
 import sys
@@ -30,14 +29,13 @@ def init():
                                     CoprHD Config with ScaleIO and Devstack.')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-c', '--check', help="Check if VArray, VPool, Networks,\
-                        etc are setup", action="store_true")
-    group.add_argument('-s', '--setup', help="Setup CoprHD based on config.py \
-                        settings with VArray, Vpool, etc", action="store_true")
+                        are setup", action="store_true")
+    group.add_argument('-s', '--setup', help="Setup CoprHD with ScaleIO and setup \
+                        VArray and Vpools", action="store_true")
+    group.add_argument('-o', '--openstack', help="Setup CoprHD with DevStack \
+                        and ScaleIO with VArray, Vpool, and Keystone Auth", action="store_true")
     group.add_argument('-d', '--delete', help="Tear Down CoprHD, removing \
-                        Storage System, VA, VP, Network, Endpoints, etc", 
-                        action="store_true")
-    group.add_argument('-p', '--partial', help="Just add ScaleIO, not Devstack \
-                        Integration With Keystone, Tenant_ID, etc",
+                        Storage System, VArray, VPools, Networks, and Endpoints", 
                         action="store_true")
     args = parser.parse_args()
     return args
@@ -385,7 +383,7 @@ def get_project():
         print "No Projects Are Defined"
         return None
 
-def remove_project(project='Admin', tenant=None):
+def remove_project(tenant=None):
     project = get_project()
     if project is None: 
         return
@@ -515,9 +513,22 @@ def tag_project(project_id):
     if len(results) > 0:
         print "Results are: %s" % results
 
+def check_auth_config():
+    command0 = ('grep -c "url:$" auth_config.cfg')
+    data = int(pexpect.run(command0).rstrip())
+    # Non-zero means url is blank
+    if data != 0:
+        escaped_url = re.escape(config.os_auth_url)
+        command1 = ("sed -i 's/url:/url:"+escaped_url+"/' auth_config.cfg")
+        data = pexpect.run(command1)
+        escaped_password = re.escape(config.os_password)
+        command2 = ("sed -i 's/passwd_user:/passwd_user:"+escaped_password+"/' auth_config.cfg")
+        data = pexpect.run(command2)
+
 def os_integration():
     """OS Integration adds the OpenStack pieces into CH and 
         adds the CH Endpoint into OS Keystone"""
+    check_auth_config()
     add_keystone_auth()
     os_project_id = get_projects('admin')
     add_tenant_id(os_project_id)
@@ -580,7 +591,7 @@ def coprhd_delete():
     remove_vpool()
     remove_va()
     remove_hosts()
-    remove_project(project='TestProject')
+    remove_project()
     # If volumes were created, you cannot remove tenant
     #remove_tenant()
     #remove_key_auth()
@@ -634,18 +645,17 @@ def coprhd_check(project='admin', tenant='admin'):
     print data
 
 if __name__ == "__main__":
+    check_auth_config()
     args = init()
     login()
     if args.setup:
-	print "Not doing OS Integration for Demo!"
-	print "I think you want the -p (partial) option"
-#        coprhd_setup()
+	coprhd_scaleio_only()
     elif args.delete:
         coprhd_delete()
     elif args.check:
         project = get_project()
         coprhd_check(project=project, tenant=None)
-    elif args.partial:
-	coprhd_scaleio_only()
+    elif args.openstack:
+	coprhd_setup()
 
 
