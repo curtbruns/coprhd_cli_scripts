@@ -130,6 +130,23 @@ def create_vp():
         print "Results are: %s" % results
         sys.exit(-1)
 
+# If we have an "admin" tenant, then we're doing DevStack integration
+def get_tenant():
+    print "====> Get Tenant"
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant list')
+    if len(results) > 0:
+        result = results.split('\n')
+        # Skip header row and grab Tenants
+        for i in range (1, len(result)-1):
+            entry = (result[i].split())[0]
+            if entry == "admin":
+                print "We have admin tenant - we are doing OS integration"
+                return "admin"
+        # If no admin tenant, we use default Provider Tenant
+        return 'Provider Tenant'
+    else:
+        return None
+
 def create_tenant():
     print "====> Creating Admin Tenant"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant create -n \
@@ -272,13 +289,13 @@ def remove_network(network,endpoints):
     if len(results) > 0:
         print "Results on removing network: %s" % results
 
-def remove_export_groups():
+def remove_export_groups(tenant):
     print "====> Delete Export Groups"
-    project = get_project()
+    project = get_project(tenant)
     if project is None:
         print "No Project, therefore No Volumes to Delete"
         return
-    command0 = '/opt/storageos/cli/bin/viprcli exportgroup list -pr '+ project
+    command0 = '/opt/storageos/cli/bin/viprcli exportgroup list -pr '+ project + ' -tn "' + tenant + '"'
     results = pexpect.run(command0,env=env)
     if len(results) > 0:
         result = results.split('\n')
@@ -287,7 +304,7 @@ def remove_export_groups():
             entry = (result[i].split())[0]
             print "====> Deleting Export Group : %s" % entry
             command = '/opt/storageos/cli/bin/viprcli exportgroup delete -n '+\
-                    entry+' -pr '+ project
+                    entry+' -pr '+ project + ' -tn "' + tenant + '"'
             results = pexpect.run(command,env=env)
             if len(results) > 0:
                 print "Deleting ExportGroup " + entry + " results: %s" % results
@@ -296,13 +313,16 @@ def remove_export_groups():
         print "No Export Groups to Delete"
 
 
-def remove_vols():
+def remove_vols(tenant=None):
     print "====> Get Volumes"
-    project = get_project()
+    project = get_project(tenant)
     if project is None:
         print "No Project, therefore No Volumes to Delete"
         return
-    command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project
+    if tenant is None:
+        command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project
+    else:
+        command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project + ' -tn "'+tenant+'"'
     results = pexpect.run(command0,env=env)
     if len(results) > 0:
         result = results.split('\n')
@@ -363,9 +383,9 @@ def remove_vpool():
 #        print "Results of removing VArray: %s" % results
 
 # Returns the first project found.  For Dev-Test, hopefully only one exists
-def get_project():
-    print "====> Get Project"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project list',env=env)
+def get_project(tenant='Provider Tenant'):
+    print "====> Get Project for Tenant: %s" % tenant
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli project list -tn "'+ tenant + '"',env=env)
     if len(results) > 0:
         result = results.split()
         for entry in result:
@@ -375,32 +395,24 @@ def get_project():
         print "No Projects Are Defined"
         return None
 
-def remove_project(tenant=None):
-    project = get_project()
+def remove_project(tenant):
+    project = get_project(tenant)
     if project is None: 
         return
     print "====> Deleting Project : %s" % project
-    command = '/opt/storageos/cli/bin/viprcli project delete -n '+project
+    if tenant is None:
+        command = '/opt/storageos/cli/bin/viprcli project delete -n '+project
+    else:
+        command = '/opt/storageos/cli/bin/viprcli project delete -n '+project+' -tn "'+tenant+'"'
     results = pexpect.run(command,env=env)
     if len(results) > 0:
-        print "Deleting project " + entry + " results: %s" % results
+        print "Deleting project " + project + " results: %s" % results
         sys.exit(-1)
     
-#    print "====> Deleting " + project + " Project"
-#    if tenant is None:
-#	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project
-#    else:
-#	    command1 = '/opt/storageos/cli/bin/viprcli project delete -n ' + project + \
-#                '-tn ' + tenant
-#    results = pexpect.run(command1,env=env)
-#    if len(results) > 0:
-#        print "Results of Deleting Project: %s" % results
-#
 
-def remove_tenant():
-    print "====> Deleting Admin Tenant"
-    """This currently fails due to tenant having an outstanding task"""
-    command0 = '/opt/storageos/cli/bin/viprcli tenant delete -n admin'
+def remove_tenant(tenant):
+    print "====> Deleting Tenant: %s" % tenant
+    command0 = '/opt/storageos/cli/bin/viprcli tenant delete -n '+tenant
     results = pexpect.run(command0,env=env)
     if len(results) > 0:
         print "Results of Deleting Tenant: %s" % results
@@ -433,7 +445,7 @@ def remove_key_auth():
     if len(results) > 0:
         print "Results are: %s" % results
 
-def get_projects(name):
+def get_os_projects(name):
     command0 = 'openstack project show ' + name + ' -f json'
     results = pexpect.run(command0)
     json_dump = json.loads(results)
@@ -487,6 +499,7 @@ def add_tenant_id(pid):
         print "Results from add_tenant: %s" % results
 
 def create_project_for_scaleio_only():
+
     print "====> Creating TestProject Project"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n TestProject -hostname ' + config.coprhd_host)
     if len(results) > 0:
@@ -522,7 +535,7 @@ def os_integration():
         adds the CH Endpoint into OS Keystone"""
     check_auth_config()
     add_keystone_auth()
-    os_project_id = get_projects('admin')
+    os_project_id = get_os_projects('admin')
     add_tenant_id(os_project_id)
     # Add CH Project with admin tenant
     create_project_for_devstack()
@@ -554,6 +567,10 @@ def check_devstack():
         s.close()
 
 def coprhd_os_setup():
+    if get_storage_providers() is not None:
+        print "Storage Providers already configured. Cowardly not setting up again"
+        print "Run coprhd -d to clear out setup"
+        sys.exit(-1)
     check_devstack()
     os_integration()
     # Setup CoprHD
@@ -574,6 +591,10 @@ def coprhd_os_setup():
     # create_vol()
 
 def coprhd_scaleio_only():
+    if get_storage_providers() is not None:
+        print "Storage Providers already configured. Cowardly not setting up again"
+        print "Run coprhd -d to clear out setup"
+        sys.exit(-1)
     create_project_for_scaleio_only()
     # Setup CoprHD
     set_provider()
@@ -591,23 +612,25 @@ def coprhd_scaleio_only():
                 create_vp()
 
 def coprhd_delete():
+    tenant = get_tenant()
     networks = get_networks(retry=2)
     if networks is None:
         print "No Network to delete"
     else:
         for network in networks:
-            remove_export_groups()
+            remove_export_groups(tenant)
             endpoints = get_endpoints(network)
             remove_network(network,endpoints)
     # If there were vols, we can't remove tenants
-    remove_vols()
+    remove_vols(tenant)
     remove_vpool()
     remove_va()
     remove_hosts()
-    remove_project()
+    remove_project(tenant)
     # If volumes were created, you cannot remove tenant
-    #remove_tenant()
-    #remove_key_auth()
+    if tenant != 'Provider Tenant':
+        remove_tenant(tenant)
+        remove_key_auth()
     systems = get_storage_systems()
     if systems is None:
         print "No Storage System to Delete"
@@ -643,13 +666,9 @@ def coprhd_check(project='admin', tenant='admin'):
     data = pexpect.run(command0,env=env)
     print data
     if len(data) > 0:
-	if tenant is None:
-            print "====> Volume(s) for Project: " + project 
-            command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project
-        else:
-            print "====> Volume(s) for Project: " + project + ", Tenant: "+tenant
-            command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project+\
-                    ' -tn ' + tenant
+        print "====> Volume(s) for Project: " + project + ", Tenant: "+tenant
+        command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project+\
+                ' -tn "' + tenant +'"'
         print pexpect.run(command0,env=env)
 
     print "====> Authentication Provider(s)"
@@ -666,8 +685,10 @@ if __name__ == "__main__":
     elif args.delete:
         coprhd_delete()
     elif args.check:
-        project = get_project()
-        coprhd_check(project=project, tenant=None)
+        tenant = get_tenant()
+        print "Tenant is: %s" % tenant
+        project = get_project(tenant)
+        coprhd_check(project=project, tenant=tenant)
     elif args.openstack:
 	coprhd_os_setup()
 
