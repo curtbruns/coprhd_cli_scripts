@@ -8,6 +8,7 @@ import config
 import argparse
 import json
 import getpass
+import socket
 
 # Hack for limiting urllib3 warnins about unverified HTTPS requests
 env={'PYTHONWARNINGS':"ignore",'VIPR_HOSTNAME':config.coprhd_host}
@@ -48,7 +49,7 @@ def login():
         sys.exit(-1)
     
     # First Logout
-    print pexpect.run('/opt/storageos/cli/bin/viprcli logout',env=env)
+    pexpect.run('/opt/storageos/cli/bin/viprcli logout',env=env)
     
     # Login to ViprCLI
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root \
@@ -532,7 +533,28 @@ def os_integration():
     delete_os_endpoint(endpoint_id)
     create_os_endpoint_for_ch(service_id)
 
-def coprhd_setup():
+# Check if DevStack VM is running
+def check_devstack():
+    print "====> Checking that DevStack is up...."
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Pull IP and Port from OS_AUTH_URL setting
+    os_url = config.os_auth_url
+    os_url = os_url.replace("http://","")
+    os_url = os_url.split('/')[0]
+    (os_url, os_port) = os_url.split(':')
+    os_port = int(os_port)
+    try:
+        s.connect((os_url, os_port))
+        print "DevStack Node is up"
+    except socket.error as e:
+        print "Error connecting to DevStack: %s" % e
+        print "Make sure DevStack is running!"
+        sys.exit(-1)
+    finally:
+        s.close()
+
+def coprhd_os_setup():
+    check_devstack()
     os_integration()
     # Setup CoprHD
     set_provider()    
@@ -647,6 +669,6 @@ if __name__ == "__main__":
         project = get_project()
         coprhd_check(project=project, tenant=None)
     elif args.openstack:
-	coprhd_setup()
+	coprhd_os_setup()
 
 
