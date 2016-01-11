@@ -38,6 +38,7 @@ def init():
     group.add_argument('-d', '--delete', help="Tear Down CoprHD, removing \
                         Storage System, VArray, VPools, Networks, and Endpoints", 
                         action="store_true")
+    parser.add_argument('-v', '--verbose', help="Enable Debug Output", action="store_true")
     args = parser.parse_args()
     return args
 
@@ -54,7 +55,9 @@ def login():
     # Login to ViprCLI
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root \
                             -d /tmp',env=env)
-    #child.logfile = sys.stdout
+	
+    if args.verbose:
+	child.logfile = sys.stdout
     password = config.coprhd_password
     child.expect('Password.*: ')
     child.sendline(password)
@@ -82,7 +85,8 @@ def set_provider():
                             create -n ScaleIO -provip '+config.scaleio_mdm1_ip+\
                             ' -provport 443 -u admin -ssl -if scaleioapi',
                             env=env)
-        #child.logfile = sys.stdout
+	if args.verbose:
+	    child.logfile = sys.stdout
         child.expect('Enter password of the storage provider:')
         child.sendline(password)
         child.expect('Retype password:')
@@ -168,7 +172,8 @@ def add_keystone_auth():
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authentication \
                             add-provider -configfile \
                             ./auth_config.cfg',env=env)
-    #child.logfile = sys.stdout
+    if args.verbose:
+        child.logfile = sys.stdout
     child.expect('Enter password of the Key1:')
     child.sendline(password)
     child.expect('Retype password:')
@@ -403,6 +408,21 @@ def remove_project(tenant):
     if tenant is None:
         command = '/opt/storageos/cli/bin/viprcli project delete -n '+project
     else:
+        print "    ---> Remove Any Tasks for QuotaOfCinder"
+        command = '/opt/storageos/bin/dbcli list QuotaOfCinder'
+        results = pexpect.run(command,env=env)
+	#print "Results are: %s " % results
+        if len(results) > 0:
+            result = results.split('\n')
+            # Find TaskId
+            for i in result:
+                test = re.search(r'^id:', i)
+		if test is not None:
+		    taskId = (i.split(':'))[1]
+                    print "    ---> Removing Task Id: %s" % taskId
+                    command = '/opt/storageos/bin/dbcli delete -i ' + taskId + ' QuotaOfCinder'
+ 		    results = pexpect.run(command, env=env)
+		    #print "         Results: %s" % results
         command = '/opt/storageos/cli/bin/viprcli project delete -n '+project+' -tn "'+tenant+'"'
     results = pexpect.run(command,env=env)
     if len(results) > 0:
