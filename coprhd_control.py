@@ -129,7 +129,7 @@ def create_vp():
     results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
                             -systemtype scaleio -type block -n ThickSATA \
                             -protocol ScaleIO -va ScaleIO_VA -pt Thick \
-                            -desc VP1',env=env)
+                            -desc VP1 -drivetype SATA',env=env)
     if len(results) > 0:
         print "Results are: %s" % results
         sys.exit(-1)
@@ -496,6 +496,21 @@ def get_os_endpoint(name):
     except:
         raise(Exception("No ID For Admin Project"))
 
+def restore_os_endpoint(service_id):
+    print "====> Restoring Endpoint for Cinder in OpenStack"
+    # Pull IP and Port from OS_AUTH_URL setting
+    os_url = config.os_auth_url
+    os_url = os_url.replace("http://","")
+    os_url = os_url.split('/')[0]
+    (os_url, os_port) = os_url.split(':')
+    os_port = int(os_port)
+    command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --adminurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --internalurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --region=RegionOne'
+    #print "Restoring Command: %s" % command0
+    results = pexpect.run(command0)
+    if len(results) > 0 and args.verbose:
+        print "Results from executing endpoint create for Cinder: "
+	print "%s" % results
+
 def create_os_endpoint_for_ch(service_id):
     print "====> Creating Endpoint for CoprHD in OpenStack"
     command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --adminurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --internalurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --region=RegionOne'
@@ -661,6 +676,11 @@ def coprhd_delete():
         print "No Storage Providers to Delete"
     else:
         remove_providers(providers)
+    print "Deleting Endpoint of Volumev2"
+    endpoint_id = get_os_endpoint('volumev2')
+    delete_os_endpoint(endpoint_id)
+    service_id = get_service('volumev2')
+    restore_os_endpoint(service_id)
 
 
 def coprhd_check(project='admin', tenant='admin'):
