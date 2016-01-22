@@ -676,11 +676,12 @@ def coprhd_delete():
         print "No Storage Providers to Delete"
     else:
         remove_providers(providers)
-    print "Deleting Endpoint of Volumev2"
-    endpoint_id = get_os_endpoint('volumev2')
-    delete_os_endpoint(endpoint_id)
-    service_id = get_service('volumev2')
-    restore_os_endpoint(service_id)
+    if tenant != 'Provider Tenant':
+        print "Deleting Endpoint of Volumev2"
+        endpoint_id = get_os_endpoint('volumev2')
+        delete_os_endpoint(endpoint_id)
+        service_id = get_service('volumev2')
+        restore_os_endpoint(service_id)
 
 
 def coprhd_check(project='admin', tenant='admin'):
