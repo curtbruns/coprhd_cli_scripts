@@ -193,9 +193,15 @@ def get_storage_systems():
         # Skip header row and grab System and Type
         for i in range (1, len(result)-1):
             entry = (result[i].split())[0]
-            sys_type = (result[i].split())[2]
+            print "Entry is: %s" % entry
             sys_dict = dict()
-            sys_dict[entry] = sys_type
+            try:
+                sys_type = (result[i].split())[2]
+                sys_dict[entry] = sys_type
+            except IndexError:
+                # Don't have System Type if Network wasn't installed
+                sys_type = "blank"
+                sys_dict[entry] = sys_type
             print "====> Found System %s and Type: %s" % (entry, sys_type)
             system_list.append(sys_dict)
             #print "System list is: %s" % system_list
@@ -222,19 +228,21 @@ def get_storage_providers():
 def remove_systems(system_list):
     print "====> Removing Storage Systems"
     for system in system_list:
-        print "Removing This one: %s" % system
+        print "Removing this one: %s" % system
         for name, sys_type in system.iteritems():
+            if sys_type is "blank":
+                continue
             command0 = '/opt/storageos/cli/bin/viprcli storagesystem deregister -n ' \
-                 + name + ' -t ' + sys_type
-        results = pexpect.run(command0,env=env)
-        if len(results) > 0:
-            print "Results of De-registering System: %s" % results
+                    + name + ' -t ' + sys_type
+            results = pexpect.run(command0,env=env)
+            if len(results) > 0:
+                print "Results of De-registering System: %s" % results
 
-        command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
+            command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
                 + name + ' -t ' + sys_type
-        results = pexpect.run(command1,env=env)
-        if len(results) > 0:
-            print "Results of Deleting System: %s" % results
+            results = pexpect.run(command1,env=env)
+            if len(results) > 0:
+                print "Results of Deleting System: %s" % results
 
 def remove_providers(providers):
     print "====> Removing Storage Providers"
@@ -581,6 +589,23 @@ def os_integration():
     delete_os_endpoint(endpoint_id)
     create_os_endpoint_for_ch(service_id)
 
+# Check MDM1 is running
+def check_mdm1():
+    print "====> Checking that ScaleIO is up...."
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Pull IP and Port from OS_AUTH_URL setting
+    os_url = config.scaleio_mdm1_ip
+    os_port = 22
+    try:
+        s.connect((os_url, os_port))
+        print "MDM1 Node is up"
+    except socket.error as e:
+        print "Error connecting to MDM1: %s" % e
+        print "Make sure ScaleIO is running!"
+        sys.exit(-1)
+    finally:
+        s.close()
+
 # Check if DevStack VM is running
 def check_devstack():
     print "====> Checking that DevStack is up...."
@@ -630,6 +655,7 @@ def coprhd_scaleio_only():
         print "Storage Providers already configured. Cowardly not setting up again"
         print "Run coprhd -d to clear out setup"
         sys.exit(-1)
+    check_mdm1()
     create_project_for_scaleio_only()
     # Setup CoprHD
     set_provider()
