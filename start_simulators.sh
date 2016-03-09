@@ -6,6 +6,12 @@
 ####################################################################
 coprhd_ip="192.168.100.11"
 
+# Run as Root!
+if [[ $UID -ne 0 ]]; then
+   echo "Must run as root"
+   exit
+fi
+
 # Start the SMIs Simulator
 cd /opt/storageos/ecom/bin
 chmod +x  ECOM
