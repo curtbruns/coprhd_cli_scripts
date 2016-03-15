@@ -367,6 +367,23 @@ def remove_va():
                     sys.exit(-1)
     else:
         print "No Varrays to Delete"
+
+def remove_vpool_database():
+    print "    ---> Remove Any DB Links to Vpool"
+    command = '/opt/storageos/bin/dbcli list VirtualPool'
+    results = pexpect.run(command,env=env)
+    print "Results are: %s " % results
+    if len(results) > 0:
+        result = results.split('\n')
+        # Find Id
+        for i in result:
+            test = re.search(r'^id:', i)
+            if test is not None:
+                taskId = (i.split(': ', 1))[1]
+                print "    ---> Removing Task Id: %s" % taskId
+                command = '/opt/storageos/bin/dbcli delete -i ' + taskId + ' VirtualPool'
+                results = pexpect.run(command, env=env)
+                #print "         Results: %s" % results
                 
 def remove_vpool():
     print "====> Deleting VPools"
@@ -386,6 +403,7 @@ def remove_vpool():
                 sys.exit(-1)
     else:
         print "No Vpools To Delete"
+    remove_vpool_database()
 
 #def remove_va():
 #    print "====> Deleting Virtual Array, ScaleIO_VA"
