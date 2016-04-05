@@ -69,7 +69,7 @@ def login():
 	print "CoprHD Login is Incorrect. Check coprhd_settings file"
 	sys.exit(-1)
 
-def set_provider():
+def set_scaleio_provider():
     print "====> Adding Storage Provider"
     # Check out Storage Providers
     result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
@@ -87,6 +87,32 @@ def set_provider():
                             env=env)
 	if args.verbose:
 	    child.logfile = sys.stdout
+        child.expect('Enter password of the storage provider:')
+        child.sendline(password)
+        child.expect('Retype password:')
+        child.sendline(password)
+        child.expect(pexpect.EOF)
+        child.before
+        child.close()
+
+def set_ceph_provider():
+    print "====> Adding Storage Provider (CEPH)"
+    # Check out Storage Providers
+    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
+                        ,env=env)
+    test = re.search(r'NAME\s+INTERFACE', result)
+    password = config.admin_key
+    if test is not None:
+        print "We have Storage Providers, bailing out!"
+        print "Providers: %s" % result
+        return(-1)
+    else:
+        child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider \
+                            create -n CEPH -provip '+config.ceph_mon_ip+\
+                            ' -provport 443 -u admin -ssl -if scaleioapi',
+                            env=env)
+        if args.verbose:
+            child.logfile = sys.stdout
         child.expect('Enter password of the storage provider:')
         child.sendline(password)
         child.expect('Retype password:')
@@ -560,7 +586,6 @@ def add_tenant_id(pid):
         print "Results from add_tenant: %s" % results
 
 def create_project_for_scaleio_only():
-
     print "====> Creating TestProject Project"
     results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n TestProject -hostname ' + config.coprhd_host)
     if len(results) > 0:
@@ -607,6 +632,23 @@ def os_integration():
     delete_os_endpoint(endpoint_id)
     create_os_endpoint_for_ch(service_id)
 
+# Check MON node is running
+def check_mon():
+    print "====> Checking that Ceph is up...."
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Pull IP and Port
+    mon_url = config.ceph_mon_ip
+    mon_port = 22
+    try:
+        s.connect((mon_url, mon_port))
+        print "MDM1 Node is up"
+    except socket.error as e:
+        print "Error connecting to MON: %s" % e
+        print "Make sure CEPH is running!"
+        sys.exit(-1)
+    finally:
+        s.close()
+
 # Check MDM1 is running
 def check_mdm1():
     print "====> Checking that ScaleIO is up...."
@@ -652,7 +694,7 @@ def coprhd_os_setup():
     check_devstack()
     os_integration()
     # Setup CoprHD
-    set_provider()    
+    set_scaleio_provider()    
     networks = get_networks(20)
     # Only setup ScaleIO Network for VA
     if networks is None:
@@ -668,6 +710,24 @@ def coprhd_os_setup():
     # Don't create vol - tenant can't be deleted if vol is created
     # create_vol()
 
+def coprhd_ceph_only():
+    check_mon()
+    create_project_for_scaleio_only()
+    # Setup CoprHD
+    set_ceph_provider()
+    networks = get_networks(20)
+    # Only setup ScaleIO Network for VA
+    if networks is None:
+        print "Error - No Network - Abort!"
+        sys.exit(-1)
+    else:
+        for network in networks:
+            test = re.search(r'\w+-ScaleIONetwork', network)
+            if test is not None:
+                print "ScaleIO Network Found: %s" % network
+                create_va(network)
+                create_vp()
+
 def coprhd_scaleio_only():
     if get_storage_providers() is not None:
         print "Storage Providers already configured. Cowardly not setting up again"
@@ -676,7 +736,7 @@ def coprhd_scaleio_only():
     check_mdm1()
     create_project_for_scaleio_only()
     # Setup CoprHD
-    set_provider()
+    set_scaleio_provider()
     networks = get_networks(20)
     # Only setup ScaleIO Network for VA
     if networks is None:
@@ -766,7 +826,12 @@ if __name__ == "__main__":
     args = init()
     login()
     if args.setup:
+        if get_storage_providers() is not None:
+            print "Storage Providers already configured. Cowardly not setting up again"
+            print "Run coprhd -d to clear out setup"
+            sys.exit(-1)
 	coprhd_scaleio_only()
+ 	#coprhd_ceph_only()
     elif args.delete:
         coprhd_delete()
     elif args.check:

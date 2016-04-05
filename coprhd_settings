@@ -21,6 +21,10 @@ export SCALEIO_MDM1_IP=192.168.100.22
 export SCALEIO_MDM2_IP=192.168.100.23
 export SCALEIO_PASSWORD=Scaleio123
 
+# CEPH Settings
+export MON_IP=192.168.100.100
+export ADMIN_KEY='AQDTHQRXcDxsKBAA2S9KDUCouBFERmoAKdqEEA=='
+
 # Some useful aliases
 alias dbs='tail -f /opt/storageos/logs/dbsvc.log'
 alias api='tail -f /opt/storageos/logs/apisvc.log'
