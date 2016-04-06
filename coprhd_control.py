@@ -109,7 +109,7 @@ def set_ceph_provider():
     else:
         child = pexpect.spawn('/opt/storageos/cli/bin/viprcli storageprovider \
                             create -n CEPH -provip '+config.ceph_mon_ip+\
-                            ' -provport 443 -u admin -ssl -if scaleioapi',
+                            ' -provport 22 -u admin -if ceph',
                             env=env)
         if args.verbose:
             child.logfile = sys.stdout
@@ -122,11 +122,11 @@ def set_ceph_provider():
         child.close()
 
 def create_va(network):
-    print "====> Creating Virtual Array, ScaleIO_VA"
+    print "====> Creating Virtual Array, myVarray1"
     print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n \
-                        ScaleIO_VA',env=env)
+                        myVarray1',env=env)
     command = '/opt/storageos/cli/bin/viprcli network update -varray_add \
-                ScaleIO_VA -n ' + network
+                myVarray1 -n ' + network
     print pexpect.run(command,env=env)
 
 def get_networks(retry=20):
@@ -641,7 +641,7 @@ def check_mon():
     mon_port = 22
     try:
         s.connect((mon_url, mon_port))
-        print "MDM1 Node is up"
+        print "MON Node is up"
     except socket.error as e:
         print "Error connecting to MON: %s" % e
         print "Make sure CEPH is running!"
@@ -710,23 +710,51 @@ def coprhd_os_setup():
     # Don't create vol - tenant can't be deleted if vol is created
     # create_vol()
 
+def set_ceph_network(net_name):
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli network create -t IP -n ' + net_name)
+    if len(results) > 0:
+        print "Results are: %s" % results
+
+def add_ceph_ports(net_name):
+    print "====> Adding Ceph Ports to Network...."
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli storagesystem list')
+    # Skip header row and grab CEPH Serial Number (sn)
+    result = results.split('\n')
+    for i in range (1, len(result)-1):
+        entry = (result[i].split())[0]
+        ceph_name = (result[i].split())[0]
+        ceph_sn = (result[i].split())[3]
+    # Add Ceph Port to network
+    if args.verbose:
+        print "Ceph SN: %s" % ceph_sn
+	print "Ceph Name: %s" % ceph_name
+    # Get Port Name
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli storageport list -t ceph -storagesystem ' + ceph_name)
+    # Skip header row and grab CEPH Serial Number (sn)
+    result = results.split('\n')
+    for i in range (1, len(result)-1):
+        ceph_port = (result[i].split())[3]
+
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli network update -n ' + net_name + ' -endpoint_add ' + ceph_port )
+    if len(results) > 0:
+        print "Results are: %s" % results
+
+def create_ceph_vp():
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create -systemtype ceph -type block -n ThinCeph -protocol RBD -va myVarray1 -pt Thin -desc CephVP')
+
 def coprhd_ceph_only():
     check_mon()
     create_project_for_scaleio_only()
     # Setup CoprHD
     set_ceph_provider()
-    networks = get_networks(20)
-    # Only setup ScaleIO Network for VA
-    if networks is None:
-        print "Error - No Network - Abort!"
-        sys.exit(-1)
-    else:
-        for network in networks:
-            test = re.search(r'\w+-ScaleIONetwork', network)
-            if test is not None:
-                print "ScaleIO Network Found: %s" % network
-                create_va(network)
-                create_vp()
+    # Create CephIP Network
+    net_name = 'CephIP'
+    set_ceph_network(net_name)
+    # Create VA and add Ceph Net to it
+    create_va(net_name)
+    # Add Storage Ports to Varray
+    add_ceph_ports(net_name)
+    create_ceph_vp()
 
 def coprhd_scaleio_only():
     if get_storage_providers() is not None:
@@ -830,8 +858,8 @@ if __name__ == "__main__":
             print "Storage Providers already configured. Cowardly not setting up again"
             print "Run coprhd -d to clear out setup"
             sys.exit(-1)
-	coprhd_scaleio_only()
- 	#coprhd_ceph_only()
+	#coprhd_scaleio_only()
+ 	coprhd_ceph_only()
     elif args.delete:
         coprhd_delete()
     elif args.check:

@@ -1,9 +1,9 @@
 # Settings for COPRHD Controller Node
-export ROOT_PASSWORD=ChangeMe
+export ROOT_PASSWORD=Intel123#
 export COPRHD_HOST=192.168.100.11
 export VIPR_HOSTNAME=${COPRHD_HOST}
 # You will need to update this if you login to Web dashboard
-export COPRHD_PASSWORD=ChangeMe
+export COPRHD_PASSWORD=Intel123#
 
 # Ignore Python Warnings for SSL 
 export PYTHONWARNINGS=ignore
