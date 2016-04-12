@@ -387,7 +387,7 @@ def remove_vpool_database():
                 
 def remove_vpool():
     print "====> Deleting VPools"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool list',env=env)
+    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool list -t block',env=env)
 
     if len(results) > 0:
         result = results.split('\n')
@@ -747,7 +747,7 @@ def coprhd_check(project='admin', tenant='admin'):
     print pexpect.run(command0,env=env)
 
     print "====> Virtual Pool(s)"
-    command0 = ('/opt/storageos/cli/bin/viprcli vpool list')
+    command0 = ('/opt/storageos/cli/bin/viprcli vpool list -t block')
     data = pexpect.run(command0,env=env)
     print data
     if len(data) > 0:
