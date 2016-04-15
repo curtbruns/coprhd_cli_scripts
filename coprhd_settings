@@ -1,16 +1,19 @@
 # Settings for COPRHD Controller Node
-export ROOT_PASSWORD=ChangeMe
+export ROOT_PASSWORD=Intel123#
 export COPRHD_HOST=192.168.100.11
 export VIPR_HOSTNAME=${COPRHD_HOST}
 # You will need to update this if you login to Web dashboard
-export COPRHD_PASSWORD=ChangeMe
+export COPRHD_PASSWORD=Intel123#
 
 # Ignore Python Warnings for SSL 
 export PYTHONWARNINGS=ignore
 
 # OpenStack/Devstack Settings
 export OS_PASSWORD=nomoresecrete
-export OS_AUTH_URL=http://192.168.100.5:5000/v2.0
+export OS_AUTH_URL=http://192.168.100.5:35357/v2.0
+#export OS_AUTH_URL=http://192.168.100.5:35357/v3
+#export OS_AUTH_URL=http://192.168.100.5:5000/v3
+
 export OS_USERNAME=admin
 export OS_TENANT_NAME=admin
 export OS_VOLUME_API_VERSION=2
