@@ -8,10 +8,13 @@ import config
 import argparse
 import json
 import getpass
+import shlex
 import socket
+import subprocess
 
 # Hack for limiting urllib3 warnins about unverified HTTPS requests
 env={'PYTHONWARNINGS':"ignore",'VIPR_HOSTNAME':config.coprhd_host}
+err_file = open("_tmp.err", "w")
 
 def init():
     if (config.root_password is None or config.scaleio_mdm1_ip is None 
@@ -50,7 +53,8 @@ def login():
         sys.exit(-1)
     
     # First Logout
-    pexpect.run('/opt/storageos/cli/bin/viprcli logout',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli logout'
+    run_cmd(cmd)
     
     # Login to ViprCLI
     child = pexpect.spawn('/opt/storageos/cli/bin/viprcli authenticate -u root \
@@ -72,8 +76,8 @@ def login():
 def set_provider():
     print "====> Adding Storage Provider"
     # Check out Storage Providers
-    result = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
-                        ,env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli storageprovider list'
+    result = run_cmd(cmd)
     test = re.search(r'NAME\s+INTERFACE', result)
     password = config.scaleio_password
     if test is not None:
@@ -97,19 +101,19 @@ def set_provider():
 
 def create_va(network):
     print "====> Creating Virtual Array, ScaleIO_VA"
-    print pexpect.run('/opt/storageos/cli/bin/viprcli varray create -n \
-                        ScaleIO_VA',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli varray create -n  ScaleIO_VA'
+    run_cmd(cmd)
     command = '/opt/storageos/cli/bin/viprcli network update -varray_add \
                 ScaleIO_VA -n ' + network
-    print pexpect.run(command,env=env)
+    print(run_cmd(cmd))
 
 def get_networks(retry=20):
     network_list = []
     print "====> Searching Network"
     # Retry if network isn't created yet
     for i in range (1,retry):
-        results = pexpect.run('/opt/storageos/cli/bin/viprcli network list'
-                                ,env=env)
+        cmd = '/opt/storageos/cli/bin/viprcli network list'
+        results = run_cmd(cmd)
         if len(results) > 0:
             result = results.split('\n')
             # Skip header row and grab Networks
@@ -126,10 +130,8 @@ def get_networks(retry=20):
 
 def create_vp():
     print "====> Creating Virtual Pool: ThickSATA"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool create \
-                            -systemtype scaleio -type block -n ThickSATA \
-                            -protocol ScaleIO -va ScaleIO_VA -pt Thick \
-                            -desc VP1 -drivetype SATA',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli vpool create -systemtype scaleio -type block -n ThickSATA -protocol ScaleIO -va ScaleIO_VA -pt Thick -desc VP1 -drivetype SATA'
+    results = run_cmd(cmd)
     if len(results) > 0:
         print "Results are: %s" % results
         sys.exit(-1)
@@ -137,7 +139,8 @@ def create_vp():
 # If we have an "admin" tenant, then we're doing DevStack integration
 def get_tenant():
     print "====> Get Tenant"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant list')
+    cmd = '/opt/storageos/cli/bin/viprcli tenant list'
+    results = run_cmd(cmd)
     if len(results) > 0:
         result = results.split('\n')
         # Skip header row and grab Tenants
@@ -153,16 +156,15 @@ def get_tenant():
 
 def create_tenant():
     print "====> Creating Admin Tenant"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli tenant create -n \
-                            admin -domain lab',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli tenant create -n  admin -domain lab'
+    results = run_cmd(cmd)
     if len(results) > 0:
         print "Results are: %s" % results
 
 def create_vol():
     print "====> Creating Volume"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli volume create \
-                            -tenant admin -pr admin -name TestVol1 -size 1G \
-                             -vpool VP1 -va ScaleIO_VA',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli volume create  -tenant admin -pr admin -name TestVol1 -size 1G -vpool VP1 -va ScaleIO_VA'
+    results = run_cmd(cmd)
     if len(results) > 0:
         print "Results are: %s" % results
 
@@ -185,8 +187,8 @@ def add_keystone_auth():
 def get_storage_systems():
     system_list = []
     print "====> Get Storage Systems"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli storagesystem list'
-                        ,env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli storagesystem list'
+    results = run_cmd(cmd)
     result = results.split()
     if len(results) > 0:
         result = results.split('\n')
@@ -212,8 +214,8 @@ def get_storage_systems():
 def get_storage_providers():
     system_list = []
     print "====> Get Storage Providers"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli storageprovider list'
-                        ,env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli storageprovider list'
+    results = run_cmd(cmd)
     result = results.split()
     if len(results) > 0:
         result = results.split('\n')
@@ -234,13 +236,13 @@ def remove_systems(system_list):
                 continue
             command0 = '/opt/storageos/cli/bin/viprcli storagesystem deregister -n ' \
                     + name + ' -t ' + sys_type
-            results = pexpect.run(command0,env=env)
+            results = run_cmd(command0)
             if len(results) > 0:
                 print "Results of De-registering System: %s" % results
 
             command1 = '/opt/storageos/cli/bin/viprcli storagesystem delete -n ' \
                 + name + ' -t ' + sys_type
-            results = pexpect.run(command1,env=env)
+            results = run_cmd(command1)
             if len(results) > 0:
                 print "Results of Deleting System: %s" % results
 
@@ -249,7 +251,7 @@ def remove_providers(providers):
     for system in providers:
         print "Removing This one: %s" % system
         command0 = '/opt/storageos/cli/bin/viprcli storageprovider delete -n ' + system 
-        results = pexpect.run(command0,env=env)
+        results = run_cmd(command0)
         if len(results) > 0:
             print "Results of Deleting Provider: %s" % results
 
@@ -257,7 +259,7 @@ def get_endpoints(network):
     # Remove the varray from the network first
     print "====> Getting Endpoints"
     command0 = '/opt/storageos/cli/bin/viprcli network show -n ' + network 
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     json_dump = json.loads(results)
     # Pull Endpoints
     print "Endpoints are: %s" % json_dump['endpoints']
@@ -267,7 +269,7 @@ def remove_network(network,endpoints):
     # Remove the varray from the network first
     print "====> Getting Varray on this Network"
     command0 = '/opt/storageos/cli/bin/viprcli network show -n ' + network
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     json_dump = json.loads(results)
     if 'connected_varrays' in json_dump:
         varray = json_dump['connected_varrays'][0]
@@ -276,14 +278,14 @@ def remove_network(network,endpoints):
         print "====> Removing Varray From Network"
         command0 = '/opt/storageos/cli/bin/viprcli network update -varray_remove \
                 ' + varray + ' -n ' + network
-        results = pexpect.run(command0,env=env)
+        results = run_cmd(command0)
         if len(results) > 0:
             print "Results on updating network to remove varray : %s" % results
 
     # De-register Network
     print "====> De-register Network"
     command1 = '/opt/storageos/cli/bin/viprcli network deregister -n ' + network
-    results = pexpect.run(command1,env=env)
+    results = run_cmd(command1)
     if len(results) > 0:
         print "Results on deregistering network : %s" % results
 
@@ -292,13 +294,13 @@ def remove_network(network,endpoints):
     for endpoint in endpoints:
         command2 = '/opt/storageos/cli/bin/viprcli network endpoint remove -n '\
                      + network + ' -e ' + endpoint
-        results = pexpect.run(command2,env=env)
+        results = run_cmd(command2)
         if len(results) > 0:
             print "Results on removing endpoint: %s" % results
 
     print "====> Deleting Network"
     command3 = '/opt/storageos/cli/bin/viprcli network delete -n ' + network
-    results = pexpect.run(command3,env=env)
+    results = run_cmd(command3)
     if len(results) > 0:
         print "Results on removing network: %s" % results
 
@@ -309,7 +311,7 @@ def remove_export_groups(tenant):
         print "No Project, therefore No Volumes to Delete"
         return
     command0 = '/opt/storageos/cli/bin/viprcli exportgroup list -pr '+ project + ' -tn "' + tenant + '"'
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     if len(results) > 0:
         result = results.split('\n')
         # Skip header row and grab Data
@@ -318,7 +320,7 @@ def remove_export_groups(tenant):
             print "====> Deleting Export Group : %s" % entry
             command = '/opt/storageos/cli/bin/viprcli exportgroup delete -n '+\
                     entry+' -pr '+ project + ' -tn "' + tenant + '"'
-            results = pexpect.run(command,env=env)
+            results = run_cmd(command)
             if len(results) > 0:
                 print "Deleting ExportGroup " + entry + " results: %s" % results
                 sys.exit(-1)
@@ -336,7 +338,7 @@ def remove_vols(tenant=None):
         command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project
     else:
         command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+ project + ' -tn "'+tenant+'"'
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     if len(results) > 0:
         result = results.split('\n')
         # Skip header row and grap Volumes
@@ -345,7 +347,7 @@ def remove_vols(tenant=None):
             print "====> Deleting Volume: %s" % entry
             command = '/opt/storageos/cli/bin/viprcli volume delete -n '+\
                     entry+' -pr '+ project
-            results = pexpect.run(command,env=env)
+            results = run_cmd(command)
             if len(results) > 0:
                 print "Deleting Volume " + entry + " results: %s" % results
                 sys.exit(-1)
@@ -354,14 +356,15 @@ def remove_vols(tenant=None):
 
 def remove_va():
     print "====> Removing Varays"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli varray list',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli varray list'
+    results = run_cmd(cmd)
     if len(results) > 0:
         result = results.split()
         for entry in result:
             if entry != "NAME":
                 print "====> Deleting Varray: %s" % entry
                 command = '/opt/storageos/cli/bin/viprcli varray delete -n '+entry
-                results = pexpect.run(command,env=env)
+                results = run_cmd(command)
                 if len(results) > 0:
                     print "Deleting varray " + entry + " results: %s" % results
                     sys.exit(-1)
@@ -371,7 +374,7 @@ def remove_va():
 def remove_vpool_database():
     print "    ---> Remove Any DB Links to Vpool"
     command = '/opt/storageos/bin/dbcli list VirtualPool'
-    results = pexpect.run(command,env=env)
+    results = run_cmd(command)
     print "Results are: %s " % results
     if len(results) > 0:
         result = results.split('\n')
@@ -382,12 +385,13 @@ def remove_vpool_database():
                 taskId = (i.split(': ', 1))[1]
                 print "    ---> Removing Task Id: %s" % taskId
                 command = '/opt/storageos/bin/dbcli delete -i ' + taskId + ' VirtualPool'
-                results = pexpect.run(command, env=env)
+                results = run_cmd(command)
                 #print "         Results: %s" % results
                 
 def remove_vpool():
     print "====> Deleting VPools"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli vpool list -t block',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli vpool list -t block'
+    results = run_cmd(cmd)
 
     if len(results) > 0:
         result = results.split('\n')
@@ -397,7 +401,7 @@ def remove_vpool():
             print "====> Deleting VPool: %s" % entry
             command = '/opt/storageos/cli/bin/viprcli vpool delete -n '+\
                     entry+' -type block'
-            results = pexpect.run(command,env=env)
+            results = run_cmd(command)
             if len(results) > 0:
                 print "Deleting Vpool " + entry + " results: %s" % results
                 sys.exit(-1)
@@ -405,18 +409,11 @@ def remove_vpool():
         print "No Vpools To Delete"
     remove_vpool_database()
 
-#def remove_va():
-#    print "====> Deleting Virtual Array, ScaleIO_VA"
-#    vpool = get_varray()
-#    results = pexpect.run('/opt/storageos/cli/bin/viprcli varray delete -n \
-#                            ScaleIO_VA',env=env)
-#    if len(results) > 0:
-#        print "Results of removing VArray: %s" % results
-
 # Returns the first project found.  For Dev-Test, hopefully only one exists
 def get_project(tenant='Provider Tenant'):
     print "====> Get Project for Tenant: %s" % tenant
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project list -tn "'+ tenant + '"',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli project list -tn "'+ tenant + '"'
+    results = run_cmd(cmd)
     if len(results) > 0:
         result = results.split()
         for entry in result:
@@ -436,7 +433,7 @@ def remove_project(tenant):
     else:
         print "    ---> Remove Any Tasks for QuotaOfCinder"
         command = '/opt/storageos/bin/dbcli list QuotaOfCinder'
-        results = pexpect.run(command,env=env)
+        results = run_cmd(command)
 	#print "Results are: %s " % results
         if len(results) > 0:
             result = results.split('\n')
@@ -447,10 +444,10 @@ def remove_project(tenant):
 		    taskId = (i.split(':'))[1]
                     print "    ---> Removing Task Id: %s" % taskId
                     command = '/opt/storageos/bin/dbcli delete -i ' + taskId + ' QuotaOfCinder'
- 		    results = pexpect.run(command, env=env)
+ 		    results = run_cmd(command)
 		    #print "         Results: %s" % results
         command = '/opt/storageos/cli/bin/viprcli project delete -n '+project+' -tn "'+tenant+'"'
-    results = pexpect.run(command,env=env)
+    results = run_cmd(command)
     if len(results) > 0:
         print "Deleting project " + project + " results: %s" % results
         sys.exit(-1)
@@ -459,13 +456,14 @@ def remove_project(tenant):
 def remove_tenant(tenant):
     print "====> Deleting Tenant: %s" % tenant
     command0 = '/opt/storageos/cli/bin/viprcli tenant delete -n '+tenant
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results of Deleting Tenant: %s" % results
 
 def remove_hosts():
     print "====> Removing Hosts"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli host list',env=env)
+    cmd = '/opt/storageos/cli/bin/viprcli host list'
+    results = run_cmd(cmd)
 
     if len(results) > 0:
         result = results.split('\n')
@@ -476,7 +474,7 @@ def remove_hosts():
             print "====> Deleting Host: %s" % entry
             command = '/opt/storageos/cli/bin/viprcli host delete -n '+\
                     entry + ' -t ' + host_type
-            results = pexpect.run(command,env=env)
+            results = run_cmd(command)
             if len(results) > 0:
                 print "Deleting Host " + entry + " results: %s" % results
                 sys.exit(-1)
@@ -487,13 +485,13 @@ def remove_key_auth():
     print "====> Deleting Keystone Auth Provider"
     command0 = '/opt/storageos/cli/bin/viprcli authentication delete-provider \
                  -n Key1'
-    results = pexpect.run(command0,env=env)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results are: %s" % results
 
 def get_os_projects(name):
     command0 = 'openstack project show ' + name + ' -f json'
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     json_dump = json.loads(results)
     try:
         id = json_dump['id']
@@ -504,7 +502,7 @@ def get_os_projects(name):
 def get_service(name):
     print "====> Getting Service for volumev2"
     command0 = 'openstack service show ' + name + ' -f json'
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     json_dump = json.loads(results)
     try:
         id = json_dump['id']
@@ -514,7 +512,7 @@ def get_service(name):
 
 def get_os_endpoint(name):
     command0 = 'openstack endpoint show ' + name + ' -f json'
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     json_dump = json.loads(results)
     try:
         id = json_dump['id']
@@ -532,7 +530,7 @@ def restore_os_endpoint(service_id):
     os_port = int(os_port)
     command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --adminurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --internalurl=http://'+os_url+':8776/v2/$\(tenant_id\)s --region=RegionOne'
     #print "Restoring Command: %s" % command0
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     if len(results) > 0 and args.verbose:
         print "Results from executing endpoint create for Cinder: "
 	print "%s" % results
@@ -540,7 +538,7 @@ def restore_os_endpoint(service_id):
 def create_os_endpoint_for_ch(service_id):
     print "====> Creating Endpoint for CoprHD in OpenStack"
     command0 = 'openstack endpoint create ' + service_id + ' --publicurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --adminurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --internalurl=http://'+config.coprhd_host+':8080/v2/$\(tenant_id\)s --region=RegionOne'
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results from executing endpoint create for CH: "
 	print "%s" % results
@@ -548,48 +546,50 @@ def create_os_endpoint_for_ch(service_id):
 def delete_os_endpoint(id):
     print "====> Deleting OpenStack Endpoint"
     command0 = 'openstack endpoint delete ' + id
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results of endpoint delete: %s" % results
 
 def add_tenant_id(pid):
     print "====> Adding Tenant"
     command0 = '/opt/storageos/cli/bin/viprcli -hostname '+ config.coprhd_host+' tenant create -n admin -domain lab -key tenant_id -value ' + pid
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results from add_tenant: %s" % results
 
 def create_project_for_scaleio_only():
 
     print "====> Creating TestProject Project"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n TestProject -hostname ' + config.coprhd_host)
+    cmd = '/opt/storageos/cli/bin/viprcli project create -n TestProject -hostname ' + config.coprhd_host
+    results = run_cmd(cmd)
     if len(results) > 0:
         print "Results are: %s" % results
 
 def create_project_for_devstack():
     print "====> Creating Admin Project"
-    results = pexpect.run('/opt/storageos/cli/bin/viprcli project create -n admin -tn admin -hostname ' + config.coprhd_host)
+    cmd = '/opt/storageos/cli/bin/viprcli project create -n admin -tn admin -hostname ' + config.coprhd_host
+    results = run_cmd(cmd)
     if len(results) > 0:
         print "Results are: %s" % results
 
 def tag_project(project_id):
     print "====> Tagging Admin Project"
     command0 = '/opt/storageos/cli/bin/viprcli project tag -hostname ' + config.coprhd_host + ' -n admin -tn admin -add ' + project_id
-    results = pexpect.run(command0)
+    results = run_cmd(command0)
     if len(results) > 0:
         print "Results are: %s" % results
 
 def check_auth_config():
-    command0 = ('grep -c "url:$" auth_config.cfg')
+    command0 = 'grep -c "url:$" auth_config.cfg'
     data = int(pexpect.run(command0).rstrip())
     # Non-zero means url is blank
     if data != 0:
         escaped_url = re.escape(config.os_auth_url)
         command1 = ("sed -i 's/url:/url:"+escaped_url+"/' auth_config.cfg")
-        data = pexpect.run(command1)
+        data = run_cmd(command1)
         escaped_password = re.escape(config.os_password)
         command2 = ("sed -i 's/passwd_user:/passwd_user:"+escaped_password+"/' auth_config.cfg")
-        data = pexpect.run(command2)
+        data = run_cmd(command2)
 
 def os_integration():
     """OS Integration adds the OpenStack pieces into CH and 
@@ -731,11 +731,11 @@ def coprhd_delete():
 def coprhd_check(project='admin', tenant='admin'):
     print "====> Storage Provider(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli storageprovider list')
-    print pexpect.run(command0,env=env)
+    print run_cmd(command0)
 
     print "====> Storage System(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli storagesystem list')
-    print pexpect.run(command0,env=env)
+    print run_cmd(command0)
 
     print "====> Network(s)"
     networks = get_networks(retry=2)
@@ -744,22 +744,35 @@ def coprhd_check(project='admin', tenant='admin'):
 
     print "====> Virtual Array(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli varray list')
-    print pexpect.run(command0,env=env)
+    print run_cmd(command0)
 
     print "====> Virtual Pool(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli vpool list -t block')
-    data = pexpect.run(command0,env=env)
+    data = run_cmd(command0)
     print data
     if len(data) > 0:
         print "====> Volume(s) for Project: " + project + ", Tenant: "+tenant
         command0 = '/opt/storageos/cli/bin/viprcli volume list -pr '+project+\
                 ' -tn "' + tenant +'"'
-        print pexpect.run(command0,env=env)
+        print run_cmd(command0)
 
     print "====> Authentication Provider(s)"
     command0 = ('/opt/storageos/cli/bin/viprcli authentication list-providers')
-    data = pexpect.run(command0,env=env)
+    data = run_cmd(command0)
     print data
+
+def run_cmd(cmd):
+    results = ''
+    command = shlex.split(cmd)
+    #print "Debug: command is: %s" % command
+    try:
+        results = subprocess.check_output(command, stderr=err_file)
+    except subprocess.CalledProcessError as e:
+        pass
+        #print "Error on call: message: %s, error: %s" % (e.message, e)
+        #print "Results are: %s" % results
+
+    return results
 
 if __name__ == "__main__":
     check_auth_config()
