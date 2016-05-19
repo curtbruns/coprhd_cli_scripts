@@ -103,7 +103,7 @@ def create_va(network):
     print "====> Creating Virtual Array, ScaleIO_VA"
     cmd = '/opt/storageos/cli/bin/viprcli varray create -n  ScaleIO_VA'
     run_cmd(cmd)
-    command = '/opt/storageos/cli/bin/viprcli network update -varray_add \
+    cmd = '/opt/storageos/cli/bin/viprcli network update -varray_add \
                 ScaleIO_VA -n ' + network
     print(run_cmd(cmd))
 
